@@ -3,10 +3,12 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useT } from "@/lib/i18n/useLang";
 import { splitSections } from "@/lib/sections";
 
 /** Markdown with each main section folded, the first one open; short texts are shown whole. */
 export function FoldedMarkdown({ markdown }: { markdown: string }) {
+  const t = useT();
   const split = splitSections(markdown);
   const [open, setOpen] = useState<boolean[]>(() => split?.sections.map((_, i) => i === 0) ?? []);
   if (!split) return <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>;
@@ -15,9 +17,9 @@ export function FoldedMarkdown({ markdown }: { markdown: string }) {
     <div className="folded">
       {split.intro && <ReactMarkdown remarkPlugins={[remarkGfm]}>{split.intro}</ReactMarkdown>}
       <div className="fold-bar">
-        <span className="muted">{split.sections.length} sections</span>
+        <span className="muted">{t("folded.sections", { n: split.sections.length })}</span>
         <button type="button" className="fold-all" aria-expanded={all} onClick={() => setOpen(split.sections.map(() => !all))}>
-          {all ? "Collapse all" : "Expand all"}
+          {all ? t("folded.collapseAll") : t("folded.expandAll")}
         </button>
       </div>
       {split.sections.map((section, i) => (

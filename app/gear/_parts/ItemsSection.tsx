@@ -4,6 +4,8 @@ import type { Part } from "@/lib/weighting";
 import { GearCard } from "@/components/gear/GearCard";
 import { ItemEditor, type ItemForm, toForm } from "./ItemEditor";
 import { Failure, GROUPS, useSave } from "@/components/gear/shared";
+import { rich } from "@/lib/i18n/rich";
+import { useT } from "@/lib/i18n/useLang";
 
 export function ItemsSection({
   kit,
@@ -21,6 +23,7 @@ export function ItemsSection({
   onSaved: () => void;
 }) {
   const { show } = useUnits();
+  const t = useT();
   const { save, failure } = useSave();
   const inSet = set ? kit.items.filter((i) => set.itemIds.includes(i.id)) : kit.items;
   const others = set ? kit.items.filter((i) => !set.itemIds.includes(i.id)) : [];
@@ -51,7 +54,7 @@ export function ItemsSection({
                     if (await save({ sets: [{ id: set.id, items: [...set.itemIds, item.id] }] })) onSaved();
                   }}
                 >
-                  Add to {set.name}
+                  {t("itemEditor.addToShort", { set: set.name })}
                 </button>
               ) : undefined
             }
@@ -64,30 +67,34 @@ export function ItemsSection({
     <section className="stack" style={{ gap: "0.75rem" }} aria-labelledby="items-h">
       <div className="chart-head">
         <h2 id="items-h" style={{ margin: 0 }}>
-          {set ? "In this set" : "Your gear"}
+          {set ? t("items.inSet") : t("items.yours")}
         </h2>
-        {landWeight > 0 && <span className="muted">{show("weight", landWeight)} on land, without tank and lead</span>}
+        {landWeight > 0 && <span className="muted">{t("items.onLand", { kg: show("weight", landWeight) })}</span>}
       </div>
       {editing && editing.id === "" && <ItemEditor key={`new-${editing.kind}`} initial={editing} set={set} onDone={done} />}
-      {!kit.items.length && <p className="muted">No gear yet. Start with your suit, BCD and tank: they matter most for weighting.</p>}
+      {!kit.items.length && <p className="muted">{t("items.none")}</p>}
       {GROUPS.map((g) => {
         const items = inSet.filter((i) => g.kinds.includes(i.kind));
         return items.length ? (
           <div key={g.title} className="stack" style={{ gap: "0.5rem" }}>
-            <h3 className="group-title">{g.title}</h3>
+            <h3 className="group-title">{t(g.title)}</h3>
             {grid(items)}
           </div>
         ) : null;
       })}
       {others.length > 0 && (
         <div className="stack" style={{ gap: "0.5rem" }}>
-          <h3 className="group-title">Your other gear</h3>
+          <h3 className="group-title">{t("items.other")}</h3>
           {grid(others, true)}
         </div>
       )}
       {parts.length > 0 && (
         <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-          <span className="pill floats">+ floats</span> <span className="pill sinks">− sinks</span> <span className="pill zero typical">≈ dashed</span>: a typical figure, not yours.
+          {rich(t("items.legend"), {
+            f: (s) => <span className="pill floats">{s}</span>,
+            s: (s) => <span className="pill sinks">{s}</span>,
+            d: (s) => <span className="pill zero typical">{s}</span>,
+          })}
         </p>
       )}
       <Failure text={failure} />

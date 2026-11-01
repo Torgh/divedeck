@@ -2,7 +2,7 @@ import { z } from "zod";
 import { parseGas } from "@/lib/record";
 import { DiveStore } from "@/lib/server/diveStore";
 import { KitStore } from "@/lib/server/kitStore";
-import { assertLocal, handle, HttpError, readBody } from "@/lib/server/http";
+import { assertLocal, handle, HttpError, langOf, readBody } from "@/lib/server/http";
 import { logVersion } from "@/lib/server/version";
 import { diveView } from "@/lib/views";
 
@@ -12,7 +12,7 @@ export const GET = handle(async (req, { params }: Ctx) => {
   assertLocal(req);
   const { id } = await params;
   const version = await logVersion();
-  const view = diveView(await new DiveStore().list(), id);
+  const view = diveView(await new DiveStore().list(), id, langOf(req));
   if (!view) throw new HttpError(404, `No dive with id ${id}.`);
   return { version, ...view };
 });

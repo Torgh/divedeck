@@ -5,6 +5,7 @@
  * lead they carried and how it felt. A planning aid, not a replacement for a weight check in the water.
  */
 
+import { type Lang, type T, translate, translator } from "./i18n";
 import type { DiveRecord } from "./record";
 import { effectiveDive } from "./record";
 import { type GearItem, type GearSet, type Kit, WATER_DENSITY, type Water, waterOf } from "./kit";
@@ -65,9 +66,9 @@ export type RentalTank = keyof typeof RENTAL_TANKS;
 export const RENTAL_TANK_IDS = Object.keys(RENTAL_TANKS) as RentalTank[];
 
 /** The set with a rental tank in place of its own tank (or added, when it has none). */
-export function withRentalTank(kit: Kit, set: GearSet, tank: RentalTank): { kit: Kit; set: GearSet } {
+export function withRentalTank(kit: Kit, set: GearSet, tank: RentalTank, lang: Lang = "en"): { kit: Kit; set: GearSet } {
   const rental = RENTAL_TANKS[tank];
-  const item: GearItem = { id: `rental-${tank}`, name: rental.name, kind: "tank", material: rental.material, volumeL: rental.volumeL };
+  const item: GearItem = { id: `rental-${tank}`, name: translate(lang, `weighting.rental.${tank}.name`), kind: "tank", material: rental.material, volumeL: rental.volumeL };
   const others = set.itemIds.filter((id) => kit.items.find((i) => i.id === id)?.kind !== "tank");
   return { kit: { ...kit, items: [...kit.items, item] }, set: { ...set, itemIds: [...others, item.id] } };
 }
@@ -100,7 +101,7 @@ export const bodySurface = (heightCm: number, massKg: number) => Math.sqrt((heig
 const lungAir = (heightCm: number) => Math.max(2.2, 0.035 * heightCm - 3);
 
 /** Neoprene: foam whose gas shrinks with pressure (Boyle), on part of the body's surface. */
-function neoprene(item: GearItem, surfaceM2: number, density: number, pressureBar: number, heightAssumed: boolean): Part | null {
+function neoprene(item: GearItem, surfaceM2: number, density: number, pressureBar: number, heightAssumed: boolean, t: T): Part | null {
   const cover = COVER[item.kind];
   if (!cover || !item.thicknessMm) return null;
   // m² × mm = L; a 3/2 suit has its torso and its limbs at different thicknesses.
@@ -116,13 +117,16 @@ function neoprene(item: GearItem, surfaceM2: number, density: number, pressureBa
     assumed: heightAssumed,
     status: heightAssumed ? "typical" : "yours",
     why:
-      `${split ? `${item.thicknessMm} mm torso, ${item.thicknessLimbsMm} mm limbs` : `${item.thicknessMm} mm neoprene on about ${Math.round(cover * 100)} % of your body`}` +
-      `${item.ageYears ? `, ${item.ageYears} years old` : ""}, squeezed at ${CHECK_DEPTH_M} m`,
+      (split
+        ? t("weighting.why.neopreneSplit", { torso: item.thicknessMm, limbs: item.thicknessLimbsMm! })
+        : t("weighting.why.neoprene", { mm: item.thicknessMm, pct: Math.round(cover * 100) })) +
+      (item.ageYears ? t("weighting.why.age", { n: item.ageYears }) : "") +
+      t("weighting.why.squeezed", { depth: CHECK_DEPTH_M }),
   };
 }
 
 /** One piece of gear's buoyancy at the check. */
-function part(item: GearItem, surfaceM2: number | null, density: number, pressureBar: number, heightAssumed: boolean): Part {
+function part(item: GearItem, surfaceM2: number | null, density: number, pressureBar: number, heightAssumed: boolean, t: T): Part {
   if (item.kind === "tank") {
     const volume = item.volumeL;
     const empty =
@@ -135,32 +139,35 @@ function part(item: GearItem, surfaceM2: number | null, density: number, pressur
       assumed: item.emptyBuoyancyKg === undefined,
       status: item.emptyBuoyancyKg === undefined ? "typical" : "yours",
       why:
-        `${item.emptyBuoyancyKg !== undefined ? "empty, from your kit" : `empty, typical for ${item.material ?? "a"} ${volume ?? "?"} L tank`}` +
-        (volume ? `, with ${r1(gas)} kg of gas left at ${RESERVE_BAR} bar` : ""),
+        (item.emptyBuoyancyKg !== undefined
+          ? t("weighting.why.tankYours")
+          : t("weighting.why.tankTypical", { material: t(`weighting.material.${item.material ?? "none"}`), volume: volume ?? "?" })) +
+        (volume ? t("weighting.why.tankGas", { kg: r1(gas), bar: RESERVE_BAR }) : ""),
     };
   }
   const typical = (kg: number, why: string): Part => ({ label: item.name, itemId: item.id, kg, assumed: true, status: "typical", why });
-  if (item.buoyancyKg !== undefined) return { label: item.name, itemId: item.id, kg: item.buoyancyKg, assumed: false, status: "yours", why: "measured, from your kit" };
+  if (item.buoyancyKg !== undefined) return { label: item.name, itemId: item.id, kg: item.buoyancyKg, assumed: false, status: "yours", why: t("weighting.why.measured") };
   if (item.kind === "suit" && item.suitType === "drysuit") {
     const thick = /thick|heavy|400|300|gruby/i.test(item.undergarment ?? "");
-    return typical(thick ? 7 : 4, `a drysuit with ${thick ? "a thick" : "a light"} undergarment, typical air in it`);
+    return typical(thick ? 7 : 4, t(thick ? "weighting.why.drysuitThick" : "weighting.why.drysuitLight"));
   }
   if (COVER[item.kind] && surfaceM2) {
-    const n = neoprene(item, surfaceM2, density, pressureBar, heightAssumed);
+    const n = neoprene(item, surfaceM2, density, pressureBar, heightAssumed, t);
     if (n) return n;
   }
   if (item.kind === "bcd") {
     const kg = item.plate === "steel" ? -2.5 : item.plate === "aluminium" ? -1 : 1;
-    return typical(kg, item.plate === "steel" ? "a steel backplate" : item.plate === "aluminium" ? "an aluminium backplate" : "a jacket's padding");
+    return typical(kg, t(item.plate === "steel" ? "weighting.why.steelPlate" : item.plate === "aluminium" ? "weighting.why.aluPlate" : "weighting.why.jacket"));
   }
-  if (item.kind === "regulator") return typical(-1, "a typical regulator set");
+  if (item.kind === "regulator") return typical(-1, t("weighting.why.regulator"));
   // Housings and lights can float or sink by a kilogram or more; small things are about 0.
-  if (item.kind === "camera" || item.kind === "light") return { label: item.name, itemId: item.id, kg: 0, assumed: true, status: "unknown", why: "not known: weigh it in water" };
-  return typical(0, "small, about 0 in the water");
+  if (item.kind === "camera" || item.kind === "light") return { label: item.name, itemId: item.id, kg: 0, assumed: true, status: "unknown", why: t("weighting.why.unknown") };
+  return typical(0, t("weighting.why.small"));
 }
 
 /** The model alone: everything that floats or sinks, without the lead. */
-export function estimateParts(kit: Kit, set: GearSet | null, density: number): { parts: Part[]; missing: string[] } {
+export function estimateParts(kit: Kit, set: GearSet | null, density: number, lang: Lang = "en"): { parts: Part[]; missing: string[] } {
+  const t = translator(lang);
   const { massKg, heightCm, bodyFatPercent } = kit.diver;
   const pressure = 1 + CHECK_DEPTH_M / 10;
   // Without a height, a typical one: the neoprene still counts, flagged as assumed.
@@ -173,24 +180,24 @@ export function estimateParts(kit: Kit, set: GearSet | null, density: number): {
     const lungs = lungAir(heightCm ?? DEFAULT_HEIGHT_CM);
     const youAssumed = bodyFatPercent === undefined || heightCm === undefined;
     parts.push({
-      label: "You",
+      label: t("weighting.you"),
       kg: (massKg / bodyDensity) * density - massKg + lungs * density,
       assumed: youAssumed,
       status: youAssumed ? "typical" : "yours",
-      why: `${massKg} kg at ${Math.round(fat * 100)} % body fat${bodyFatPercent === undefined ? " (assumed)" : ""}, with about ${r1(lungs)} L of air in your lungs`,
+      why: t(bodyFatPercent === undefined ? "weighting.why.youAssumed" : "weighting.why.you", { kg: massKg, fat: Math.round(fat * 100), lungs: r1(lungs) }),
     });
-  } else missing.push("your body mass");
-  if (bodyFatPercent === undefined) missing.push("your body fat (it moves the estimate by about 1 kg per 5 %)");
-  if (heightCm === undefined) missing.push("your height (for your suit's area and your lungs)");
+  } else missing.push(t("weighting.missing.mass"));
+  if (bodyFatPercent === undefined) missing.push(t("weighting.missing.fat"));
+  if (heightCm === undefined) missing.push(t("weighting.missing.height"));
 
   const items = set ? set.itemIds.map((id) => kit.items.find((i) => i.id === id)).filter((i): i is GearItem => !!i) : [];
-  for (const item of items) parts.push(part(item, surface, density, pressure, heightCm === undefined));
-  if (!items.some((i) => i.kind === "suit")) missing.push("the suit you dive in");
-  if (!items.some((i) => i.kind === "tank")) missing.push("the tank");
+  for (const item of items) parts.push(part(item, surface, density, pressure, heightCm === undefined, t));
+  if (!items.some((i) => i.kind === "suit")) missing.push(t("weighting.missing.suit"));
+  if (!items.some((i) => i.kind === "tank")) missing.push(t("weighting.missing.tank"));
   for (const item of items) {
-    if (item.kind === "tank" && item.emptyBuoyancyKg === undefined) missing.push(`${item.name}: its empty buoyancy from the maker's sheet`);
-    if (item.kind === "suit" && item.suitType !== "drysuit" && !item.thicknessMm) missing.push(`${item.name}: its neoprene thickness`);
-    if (item.kind === "camera" && item.buoyancyKg === undefined) missing.push(`${item.name}: its buoyancy (housings often float by a kilogram or more)`);
+    if (item.kind === "tank" && item.emptyBuoyancyKg === undefined) missing.push(t("weighting.missing.tankEmpty", { name: item.name }));
+    if (item.kind === "suit" && item.suitType !== "drysuit" && !item.thicknessMm) missing.push(t("weighting.missing.suitThickness", { name: item.name }));
+    if (item.kind === "camera" && item.buoyancyKg === undefined) missing.push(t("weighting.missing.cameraBuoyancy", { name: item.name }));
   }
   return { parts, missing };
 }
@@ -222,25 +229,33 @@ function calibrate(kit: Kit, records: DiveRecord[], forSet: GearSet | null): Wei
  * How far to trust the number: a missing tank, typical figures (the bigger, the less), unknown ones
  * and no dives to correct it all take some away.
  */
-export function confidenceOf(parts: Part[], hasTank: boolean, calibration: WeightingEstimate["calibration"]): Confidence {
+export function confidenceOf(parts: Part[], hasTank: boolean, calibration: WeightingEstimate["calibration"], lang: Lang = "en"): Confidence {
+  const t = translator(lang);
   let score = 100;
   const reasons: string[] = [];
   if (!hasTank) {
     score -= 35;
-    reasons.push("no tank in the set");
+    reasons.push(t("weighting.confidence.noTank"));
   }
   // Small things taken as about 0 kg don't move the number enough to count.
   const typical = parts.filter((p) => p.status === "typical" && p.kg !== 0);
   const unknown = parts.filter((p) => p.status === "unknown");
   score -= typical.reduce((s, p) => s + Math.min(12, 4 + 4 * Math.abs(p.kg)), 0) + 12 * unknown.length;
   if (typical.length || unknown.length)
-    reasons.push([typical.length ? `${typical.length} typical figure${typical.length === 1 ? "" : "s"}` : null, unknown.length ? `${unknown.length} unknown` : null].filter(Boolean).join(", "));
+    reasons.push(
+      [
+        typical.length ? t("weighting.confidence.typical", { n: typical.length }) : null,
+        unknown.length ? t("weighting.confidence.unknown", { n: unknown.length }) : null,
+      ]
+        .filter(Boolean)
+        .join(", "),
+    );
   if (!calibration) {
     score -= 25;
-    reasons.push("no dives logged with this set yet");
+    reasons.push(t("weighting.confidence.noDives"));
   } else {
     if (calibration.dives < 3) score -= 10;
-    reasons.push(`corrected by ${calibration.dives} of your dive${calibration.dives === 1 ? "" : "s"}`);
+    reasons.push(t("weighting.confidence.corrected", { n: calibration.dives }));
   }
   score = Math.max(5, Math.min(100, score));
   return { level: score >= 75 ? "high" : score >= 45 ? "medium" : "low", score, reasons };
@@ -253,16 +268,21 @@ export function estimateWeighting(
   water: Water,
   density = WATER_DENSITY[water],
   rentalTank: RentalTank | null = null,
+  lang: Lang = "en",
 ): WeightingEstimate {
+  const t = translator(lang);
   // A rental tank replaces the set's own; the diver's dives still correct the rest as they are.
-  const swapped = setRef && rentalTank ? withRentalTank(kit, setRef, rentalTank) : null;
-  const { parts, missing: found } = estimateParts(swapped?.kit ?? kit, swapped?.set ?? setRef, density);
-  const rental = swapped ? RENTAL_TANKS[rentalTank!] : null;
+  const swapped = setRef && rentalTank ? withRentalTank(kit, setRef, rentalTank, lang) : null;
+  const { parts, missing: found } = estimateParts(swapped?.kit ?? kit, swapped?.set ?? setRef, density, lang);
+  const rental = swapped ? rentalTank! : null;
   const missing = rental
-    ? [`ask the dive centre which tanks they give: a ${rental.short} is assumed`, ...found.filter((m) => !m.startsWith(`${rental.name}:`))]
+    ? [
+        t("weighting.missing.rental", { tank: t(`weighting.rental.${rental}.short`) }),
+        ...found.filter((m) => !m.startsWith(`${t(`weighting.rental.${rental}.name`)}:`)),
+      ]
     : found;
   const calibration = calibrate(kit, records, setRef);
-  if (!calibration) missing.push("a few dives with this set, the lead you carried and how it felt (they correct the estimate to you)");
+  if (!calibration) missing.push(t("weighting.missing.dives"));
   const model = kit.diver.massKg ? leadFor(parts.reduce((s, p) => s + p.kg, 0), density) : null;
   return {
     set: setRef ? { id: setRef.id, name: setRef.name } : null,
@@ -274,6 +294,6 @@ export function estimateWeighting(
     parts: parts.map((p) => ({ ...p, kg: r1(p.kg) })),
     calibration,
     missing,
-    confidence: confidenceOf(parts, !!swapped || !!setRef?.itemIds.some((id) => kit.items.find((i) => i.id === id)?.kind === "tank"), calibration),
+    confidence: confidenceOf(parts, !!swapped || !!setRef?.itemIds.some((id) => kit.items.find((i) => i.id === id)?.kind === "tank"), calibration, lang),
   };
 }

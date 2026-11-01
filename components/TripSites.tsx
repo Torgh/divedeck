@@ -7,31 +7,42 @@ import type { TripEdit } from "@/components/TripPrep";
 import { useUnits } from "@/components/Units";
 import { api } from "@/components/useLive";
 import { formatDate } from "@/lib/format";
+import type { T } from "@/lib/i18n";
+import { rich } from "@/lib/i18n/rich";
+import { useLang, useT } from "@/lib/i18n/useLang";
 import type { SavedText, SiteStatus, TripShop, TripSite } from "@/lib/trip";
 
 /** Depth range, distance, type and entry, in a few words. */
 export function siteFacts(
   site: Pick<TripSite, "minDepthM" | "maxDepthM" | "distanceKm" | "type" | "entry">,
   range: (min: number | undefined, max: number | undefined) => string | null,
+  t: T,
 ): string {
-  return [range(site.minDepthM, site.maxDepthM), site.distanceKm !== undefined ? `${site.distanceKm} km from the shop` : null, site.type, site.entry ? `${site.entry} entry` : null]
+  return [
+    range(site.minDepthM, site.maxDepthM),
+    site.distanceKm !== undefined ? t("sites.fromShop", { km: site.distanceKm }) : null,
+    site.type,
+    site.entry ? t("sites.entry", { entry: site.entry }) : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 }
 
 /** A link to where the site's facts come from, when it is a web page. */
 function SourceLink({ site }: { site: TripSite }) {
+  const t = useT();
   if (!site.source?.startsWith("http")) return null;
   return (
     <a className="muted" href={site.source} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", fontSize: "0.85rem" }}>
-      Source
+      {t("sites.source")}
     </a>
   );
 }
 
 function SiteCard({ site, busy, onChoose }: { site: TripSite; busy: boolean; onChoose?: (status: SiteStatus) => void }) {
   const { range } = useUnits();
-  const line = siteFacts(site, (min, max) => range("depth", min, max));
+  const t = useT();
+  const line = siteFacts(site, (min, max) => range("depth", min, max), t);
   return (
     <article className={`card site-card ${site.status}`} id={`site-${site.id}`}>
       <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem", alignItems: "flex-start" }}>
@@ -43,23 +54,23 @@ function SiteCard({ site, busy, onChoose }: { site: TripSite; busy: boolean; onC
             </div>
           )}
         </div>
-        {site.status === "chosen" && <span className="pill chosen">Chosen</span>}
+        {site.status === "chosen" && <span className="pill chosen">{t("sites.chosen")}</span>}
       </div>
       <p style={{ margin: 0 }}>{site.why}</p>
       <div className="row" style={{ gap: "0.4rem", marginTop: "auto" }}>
         {onChoose && site.status !== "chosen" && (
           <button className="button small primary" type="button" disabled={busy} onClick={() => onChoose("chosen")}>
-            Choose
+            {t("sites.choose")}
           </button>
         )}
         {onChoose && site.status === "proposed" && (
           <button className="button small" type="button" disabled={busy} onClick={() => onChoose("dropped")}>
-            Not this one
+            {t("sites.notThis")}
           </button>
         )}
         {onChoose && site.status === "chosen" && (
           <button className="button small" type="button" disabled={busy} onClick={() => onChoose("proposed")}>
-            Undo
+            {t("sites.undo")}
           </button>
         )}
         <SourceLink site={site} />
@@ -71,7 +82,9 @@ function SiteCard({ site, busy, onChoose }: { site: TripSite; busy: boolean; onC
 /** A chosen site: what was proposed (facts, why it suits you, source) stays, and the profile follows. */
 function ChosenSite({ site, busy, onUndo }: { site: TripSite; busy: boolean; onUndo?: () => void }) {
   const { range } = useUnits();
-  const line = siteFacts(site, (min, max) => range("depth", min, max));
+  const t = useT();
+  const lang = useLang();
+  const line = siteFacts(site, (min, max) => range("depth", min, max), t);
   return (
     <article className="card stack site-profile" id={`site-${site.id}`} aria-labelledby={`site-h-${site.id}`}>
       <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem", alignItems: "flex-start" }}>
@@ -87,7 +100,7 @@ function ChosenSite({ site, busy, onUndo }: { site: TripSite; busy: boolean; onU
         </div>
         {onUndo && (
           <button className="button small" type="button" disabled={busy} onClick={onUndo}>
-            Undo choice
+            {t("sites.undoChoice")}
           </button>
         )}
       </div>
@@ -98,11 +111,11 @@ function ChosenSite({ site, busy, onUndo }: { site: TripSite; busy: boolean; onU
       {site.profile ? (
         <div className="review">
           <FoldedMarkdown markdown={site.profile.markdown} />
-          <p className="muted">Researched {formatDate(site.profile.savedAt.slice(0, 19))}</p>
+          <p className="muted">{t("sites.researched", { date: formatDate(site.profile.savedAt.slice(0, 19), true, lang) })}</p>
         </div>
       ) : (
         <p className="muted" style={{ margin: 0 }}>
-          Not researched yet.
+          {t("sites.notResearched")}
         </p>
       )}
     </article>
@@ -114,6 +127,8 @@ function ChosenSite({ site, busy, onUndo }: { site: TripSite; busy: boolean; onU
  * only the chosen ones, and their profiles show here. Without `edit` (the phone) the sites are only shown.
  */
 export function TripSites({ trip, shop, sites, notes, edit }: { trip: string; shop: TripShop | null; sites: TripSite[]; notes: SavedText | null; edit?: TripEdit }) {
+  const t = useT();
+  const lang = useLang();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const scout = <Command text={`/mcp__divedeck__site-scout ${trip}`} />;
@@ -136,11 +151,16 @@ export function TripSites({ trip, shop, sites, notes, edit }: { trip: string; sh
     return (
       <section className="card stack" id="sites" aria-labelledby="sites-h">
         <h2 id="sites-h" style={{ margin: 0 }}>
-          Dive sites
+          {t("sites.title")}
         </h2>
         <p className="muted" style={{ margin: 0 }}>
-          Your companion can propose the dive sites around your dive shop that suit your log; you choose, and it then finds out what each chosen one takes. Ask it in Claude
-          Code or Codex{edit ? <>: {scout}</> : " on the PC"}.
+          {edit ? (
+            <>
+              {t("sites.introEdit")} {scout}
+            </>
+          ) : (
+            t("sites.intro")
+          )}
         </p>
       </section>
     );
@@ -153,18 +173,18 @@ export function TripSites({ trip, shop, sites, notes, edit }: { trip: string; sh
     <section className="stack" id="sites" style={{ gap: "0.75rem" }} aria-labelledby="sites-h">
       <div className="chart-head">
         <h2 id="sites-h" style={{ margin: 0 }}>
-          Dive sites
+          {t("sites.title")}
         </h2>
-        {shop && <span className="muted">around {shop.name}</span>}
+        {shop && <span className="muted">{t("sites.around", { shop: shop.name })}</span>}
       </div>
 
       {notes && (
         <section className="card review" aria-labelledby="site-notes-h">
           <h3 id="site-notes-h" style={{ marginTop: 0 }}>
-            What your companion weighed
+            {t("sites.weighed")}
           </h3>
           <FoldedMarkdown markdown={notes.markdown} />
-          <p className="muted">Saved {formatDate(notes.savedAt.slice(0, 19))}</p>
+          <p className="muted">{t("common.savedOn", { date: formatDate(notes.savedAt.slice(0, 19), true, lang) })}</p>
         </section>
       )}
 
@@ -174,14 +194,14 @@ export function TripSites({ trip, shop, sites, notes, edit }: { trip: string; sh
 
       {waiting.length > 0 && (
         <div className="notice">
-          {waiting.length === 1 ? `${waiting[0].name} is` : `${waiting.length} chosen sites are`} waiting for your companion to find out the conditions and what it
-          takes{edit ? <>: {scout}</> : " (on the PC)"}.
+          {waiting.length === 1 ? t("sites.waitingOne", { name: waiting[0].name }) : t("sites.waiting", { n: waiting.length })}
+          {edit ? <>: {scout}</> : ` ${t("sites.onPc")}`}
         </div>
       )}
 
       {proposed.length > 0 && (
         <>
-          <h3 className="group-title">{chosen.length ? "More proposals" : edit ? "Proposed for you: choose the ones you want to dive" : "Proposed for you: choose on the PC"}</h3>
+          <h3 className="group-title">{chosen.length ? t("sites.more") : edit ? t("sites.proposedEdit") : t("sites.proposed")}</h3>
           <div className="gear-grid">
             {proposed.map((site) => (
               <SiteCard key={site.id} site={site} busy={busy} onChoose={edit && ((status) => choose(site.id, status))} />
@@ -193,7 +213,7 @@ export function TripSites({ trip, shop, sites, notes, edit }: { trip: string; sh
       {dropped.length > 0 && (
         <details>
           <summary className="muted">
-            {dropped.length} not for this trip: {dropped.map((s) => s.name).join(", ")}
+            {t("sites.dropped", { n: dropped.length, names: dropped.map((s) => s.name).join(", ") })}
           </summary>
           <div className="gear-grid" style={{ marginTop: "0.6rem" }}>
             {dropped.map((site) => (
@@ -205,11 +225,13 @@ export function TripSites({ trip, shop, sites, notes, edit }: { trip: string; sh
 
       {failure && <div className="error">{failure}</div>}
       <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-        Sites: ©{" "}
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-          OpenStreetMap contributors
-        </a>{" "}
-        (mapped by volunteers) and the web; sea forecast: Open-Meteo. The dive centre&apos;s briefing decides on the day.
+        {rich(t("sites.credits"), {
+          a: (s) => (
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+              {s}
+            </a>
+          ),
+        })}
       </p>
     </section>
   );

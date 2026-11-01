@@ -4,6 +4,8 @@ import { Glyph } from "@/components/NavIcons";
 import { UnitsProvider } from "@/components/Units";
 import { type DiveDeckExport, readExport } from "@/lib/exportFile";
 import { formatDate } from "@/lib/format";
+import type { Key } from "@/lib/i18n";
+import { useLang, useT } from "@/lib/i18n/useLang";
 import { buildPhoneDives, isPhoneDives, type PhoneFile, phoneDivesFileName, phoneFile, stillOnPhone, withPhoneDives } from "@/lib/phoneDives";
 import { tripsView } from "@/lib/tripViews";
 import { logView } from "@/lib/views";
@@ -12,12 +14,12 @@ import { shareFile } from "./share";
 import { forgetLog, loadLog, loadPhoneFiles, saveLog, savePhoneFiles } from "./storage";
 import { go, useHashPath } from "./useHashPath";
 
-const TABS = [
-  { href: "/", label: "Dashboard", icon: "dashboard" },
-  { href: "/dives", label: "Dive log", icon: "log" },
-  { href: "/trips", label: "Trips", icon: "trips" },
-  { href: "/gear", label: "Gear", icon: "gear" },
-  { href: "/file", label: "Your file", icon: "import" },
+const TABS: { href: string; label: Key; icon: string }[] = [
+  { href: "/", label: "nav.dashboard", icon: "dashboard" },
+  { href: "/dives", label: "nav.log", icon: "log" },
+  { href: "/trips", label: "nav.trips", icon: "trips" },
+  { href: "/gear", label: "nav.gear", icon: "gear" },
+  { href: "/file", label: "phone.yourFile", icon: "import" },
 ];
 
 export function App() {
@@ -29,6 +31,8 @@ export function App() {
   // Re-read on resume so "in 3 days" moves on when the app was left open overnight.
   const [now, setNow] = useState(() => new Date());
   const path = useHashPath();
+  const t = useT();
+  const lang = useLang();
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -74,13 +78,16 @@ export function App() {
 
   useEffect(() => {
     if (!notice) return;
-    const t = setTimeout(() => setNotice(null), 3500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setNotice(null), 3500);
+    return () => clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   const merged = useMemo(() => (log ? withPhoneDives(log.dives, phoneFiles) : null), [log, phoneFiles]);
-  const views = useMemo(() => (log && merged ? { log: logView(merged.dives), trips: tripsView(log.trips, now) } : null), [log, merged, now]);
-  const plural = (n: number, what: string) => `${n} ${what}${n === 1 ? "" : "s"}`;
+  const views = useMemo(() => (log && merged ? { log: logView(merged.dives, lang), trips: tripsView(log.trips, now) } : null), [log, merged, now, lang]);
 
   // One picker for both: the export from the PC (JSON), or a UDDF file from the dive computer's app.
   async function importFile(file: File) {
@@ -89,32 +96,32 @@ export function App() {
       const text = new TextDecoder().decode(bytes);
       if (text.trimStart().startsWith("{")) {
         const json = JSON.parse(text);
-        if (isPhoneDives(json)) throw new Error("This is the file for the PC: import it on the PC's Import page.");
+        if (isPhoneDives(json)) throw new Error(t("phone.forPc"));
         const next = readExport(json);
         const kept = stillOnPhone(phoneFiles, next.dives);
         await saveLog(next);
         await savePhoneFiles(kept);
         setLog(next);
         setPhoneFiles(kept);
-        setNotice(`Imported ${plural(next.dives.length, "dive")} and ${plural(next.trips.length, "trip")}`);
+        setNotice(t("phone.imported", { dives: t("log.count", { n: next.dives.length }), trips: t("phone.trips", { n: next.trips.length }) }));
         go("/");
         return;
       }
-      if (!log || !merged) throw new Error("Import your DiveDeck file from the PC first, then add dives here.");
+      if (!log || !merged) throw new Error(t("phone.pcFirst"));
       const { file: added, records } = phoneFile(file.name, bytes, new Date().toISOString());
       const known = new Set(merged.dives.map((d) => d.id));
       const fresh = records.filter((r) => !known.has(r.id));
       if (!fresh.length) {
-        setNotice(records.length ? "These dives are already in your log." : "No dives in this file.");
+        setNotice(records.length ? t("phone.already") : t("phone.noDivesInFile"));
         return;
       }
       const files = [...phoneFiles, added];
       await savePhoneFiles(files);
       setPhoneFiles(files);
-      setNotice(`Added ${plural(fresh.length, "dive")}. Send them to the PC from Your file.`);
+      setNotice(t("phone.added", { n: fresh.length }));
       go(fresh.length === 1 ? `/dives/${fresh[0].id}` : "/dives");
     } catch (e) {
-      setNotice(e instanceof SyntaxError ? "This file is not valid JSON." : (e as Error).message);
+      setNotice(e instanceof SyntaxError ? t("phone.badJson") : (e as Error).message);
     }
   }
 
@@ -128,7 +135,7 @@ export function App() {
   }
 
   async function forget() {
-    if (merged?.phoneOnly.size && !window.confirm(`${plural(merged.phoneOnly.size, "dive")} imported on this phone aren't on the PC yet. Remove them too?`)) return;
+    if (merged?.phoneOnly.size && !window.confirm(t("phone.confirmForget", { n: merged.phoneOnly.size }))) return;
     await forgetLog();
     setLog(null);
     setPhoneFiles([]);
@@ -164,18 +171,18 @@ export function App() {
             <div className="live">
               <span className="status">
                 <span className="dot good" />
-                <strong>Offline</strong>
+                <strong>{t("nav.offline")}</strong>
               </span>
-              <span>exported {formatDate(localTime(log.exportedAt), false)}</span>
+              <span>{t("phone.exported", { date: formatDate(localTime(log.exportedAt), false, lang) })}</span>
             </div>
           )}
         </header>
         {log && (
-          <nav className="nav" aria-label="Main">
-            {TABS.map((t) => (
-              <a key={t.href} href={`#${t.href}`} className="link" aria-current={current(t.href) ? "page" : undefined}>
-                <Glyph icon={t.icon} />
-                {t.label}
+          <nav className="nav" aria-label={t("nav.main")}>
+            {TABS.map((tab) => (
+              <a key={tab.href} href={`#${tab.href}`} className="link" aria-current={current(tab.href) ? "page" : undefined}>
+                <Glyph icon={tab.icon} />
+                {t(tab.label)}
               </a>
             ))}
           </nav>

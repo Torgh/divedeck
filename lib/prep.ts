@@ -5,6 +5,7 @@
  */
 
 import { ambientBar, PPO2_DECO_LIMIT, PPO2_WORK_LIMIT, type Severity, SEVERITY_ORDER, SURFACE_BAR } from "./analysis";
+import { type Key, type Lang, type Params, translate } from "./i18n";
 import { pyRound } from "./py";
 import { analyzeRecord, chronological, type DiveRecord, effectiveDive, parseGas } from "./record";
 
@@ -153,16 +154,19 @@ function daysBetween(from: string, to: string): number | null {
 }
 
 /** The note on the problems that keep coming back (the same for every dive of a trip). */
-export function recurringNote(recurring: DivePrep["recurringIssues"]): string {
-  return `Keeps coming back: ${recurring.map((r) => `${r.title} (${r.dives} of the last ${r.of} dives)`).join("; ")}.`;
+export function recurringNote(recurring: DivePrep["recurringIssues"], lang: Lang = "en"): string {
+  const issues = recurring.map((r) => translate(lang, "prep.recurringIssue", { title: r.title, count: r.dives, n: r.of })).join("; ");
+  return translate(lang, "prep.recurring", { issues });
 }
 
-export function prepareDive(records: DiveRecord[], plan: PlannedDive, today = new Date()): DivePrep {
+/** What the diver brings to a planned dive; texts in `lang` (English for the MCP server). */
+export function prepareDive(records: DiveRecord[], plan: PlannedDive, today = new Date(), lang: Lang = "en"): DivePrep {
+  const t = (key: Key, params?: Params) => translate(lang, key, params);
   const on = isDate(plan.date) ? plan.date : today.toISOString().slice(0, 10);
   // What the diver had done before the day of the dive, also when the plan is read after the trip.
   const all = chronological(records).map((record, i) => {
     const dive = effectiveDive(record);
-    const { metrics, findings } = analyzeRecord(record);
+    const { metrics, findings } = analyzeRecord(record, lang);
     const row: LoggedDiveRow = {
       seq: i + 1,
       id: record.id,
@@ -228,25 +232,26 @@ export function prepareDive(records: DiveRecord[], plan: PlannedDive, today = ne
   const nearDepth = depth === null ? 0 : log.filter((d) => d.metrics.maxDepthM >= depth - NEAR_DEPTH_M).length;
 
   const notes: string[] = [];
-  if (!log.length) notes.push("The dive log is empty: there is no history to prepare from. Import the diver's dives first.");
+  const family = gas ? t(`prep.gas.${gas.family}`) : "";
+  if (!log.length) notes.push(t("prep.emptyLog"));
   if (rawPpo2 !== null && rawPpo2 > PPO2_DECO_LIMIT)
-    notes.push(`ppO2 ${ppo2} bar at ${depth} m is over ${PPO2_DECO_LIMIT} bar: this gas is not safe at that depth (MOD ${mod} m at ${PPO2_WORK_LIMIT} bar).`);
-  else if (rawPpo2 !== null && rawPpo2 > PPO2_WORK_LIMIT)
-    notes.push(`ppO2 ${ppo2} bar at ${depth} m is over ${PPO2_WORK_LIMIT} bar for the bottom phase (MOD ${mod} m).`);
-  if (depth !== null && deepest !== null && depth > deepest)
-    notes.push(`Deeper than the diver has logged: ${depth} m planned, deepest so far ${deepest} m.`);
-  if (daysSince !== null && daysSince > REFRESHER_DAYS)
-    notes.push(`${daysSince} days since the last logged dive: worth a refresher or an easy check-out dive first.`);
+    notes.push(t("prep.ppo2Unsafe", { ppo2: ppo2!, depth: depth!, limit: PPO2_DECO_LIMIT, mod: mod!, work: PPO2_WORK_LIMIT }));
+  else if (rawPpo2 !== null && rawPpo2 > PPO2_WORK_LIMIT) notes.push(t("prep.ppo2High", { ppo2: ppo2!, depth: depth!, limit: PPO2_WORK_LIMIT, mod: mod! }));
+  if (depth !== null && deepest !== null && depth > deepest) notes.push(t("prep.deeper", { depth, deepest }));
+  if (daysSince !== null && daysSince > REFRESHER_DAYS) notes.push(t("prep.refresher", { n: daysSince }));
   if (gas && gas.o2 === null)
-    notes.push(`The ${gas.family} mix isn't known yet: ask which mix, to check ppO2 and MOD${gas.family === "nitrox" && bestNitrox !== null ? ` (EAN${bestNitrox} is the richest nitrox for ${depth} m)` : ""}.`);
-  if (gas && log.length && withGas === 0) notes.push(`No logged dives on ${gas.family} yet.`);
-  if (gas?.family === "air" && depth !== null && depth > NARCOSIS_DEPTH_M)
-    notes.push(`Air at ${depth} m: expect narcosis (END ${pyRound(depth, 1)} m).`);
-  if (end !== null && end > NARCOSIS_DEPTH_M) notes.push(`END ${end} m at ${depth} m: narcosis is worth planning for.`);
-  if (log.length && rmv === null) notes.push("No gas consumption in the log: fill in tank volumes (update_dive) to plan gas from the diver's RMV.");
-  if ((plan.dives ?? 1) >= 2) notes.push(`${plan.dives} dives in this outing: plan the surface interval and the second dive shallower than the first.`);
-  if (recurring.length) notes.push(recurringNote(recurring));
-  if (plan.site && log.length && !atSite.length) notes.push(`First dive at ${plan.site} in the log.`);
+    notes.push(
+      gas.family === "nitrox" && bestNitrox !== null
+        ? t("prep.mixUnknownNitrox", { gas: family, best: bestNitrox, depth: depth! })
+        : t("prep.mixUnknown", { gas: family }),
+    );
+  if (gas && log.length && withGas === 0) notes.push(t("prep.noDivesOnGas", { gas: family }));
+  if (gas?.family === "air" && depth !== null && depth > NARCOSIS_DEPTH_M) notes.push(t("prep.airNarcosis", { depth, end: pyRound(depth, 1) }));
+  if (end !== null && end > NARCOSIS_DEPTH_M) notes.push(t("prep.endNarcosis", { end, depth: depth! }));
+  if (log.length && rmv === null) notes.push(t("prep.noRmv"));
+  if ((plan.dives ?? 1) >= 2) notes.push(t("prep.twoDives", { n: plan.dives! }));
+  if (recurring.length) notes.push(recurringNote(recurring, lang));
+  if (plan.site && log.length && !atSite.length) notes.push(t("prep.firstAtSite", { site: plan.site }));
 
   return {
     plan,

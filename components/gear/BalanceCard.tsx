@@ -1,11 +1,17 @@
 import { useUnits } from "@/components/Units";
 import { type GearItem, type Water, WATERS } from "@/lib/kit";
-import { RENTAL_TANK_IDS, RENTAL_TANKS, type WeightingEstimate } from "@/lib/weighting";
-import { type TankChoice, WATER_LABEL } from "./shared";
+import type { T } from "@/lib/i18n";
+import { useT } from "@/lib/i18n/useLang";
+import { RENTAL_TANK_IDS, type WeightingEstimate } from "@/lib/weighting";
+import type { TankChoice } from "./shared";
 
 /** "Your Tank (steel 15 L)", or that the set has none. */
-const ownLabel = (tank: GearItem | undefined) =>
-  tank ? `Yours: ${[tank.material, tank.volumeL ? `${tank.volumeL} L` : null].filter(Boolean).join(" ") || tank.name}` : "Yours (none in the set)";
+const ownLabel = (tank: GearItem | undefined, t: T) =>
+  tank
+    ? t("gear.balance.yours", {
+        tank: [tank.material ? t(`weighting.material.${tank.material}`) : null, tank.volumeL ? `${tank.volumeL} L` : null].filter(Boolean).join(" ") || tank.name,
+      })
+    : t("gear.balance.yoursNone");
 
 /** Bars from a centre line: what floats goes right in blue, what sinks goes left in orange. */
 export function BalanceCard({
@@ -26,9 +32,12 @@ export function BalanceCard({
   ownTank: GearItem | undefined;
 }) {
   const { show } = useUnits();
+  const t = useT();
   const parts = estimate.parts;
   const total = parts.reduce((s, p) => s + p.kg, 0);
-  const shown = parts.filter((p) => p.label === "You" || p.kg !== 0 || p.status === "unknown");
+  // The diver is the one part without a piece of gear.
+  const isYou = (p: (typeof parts)[number]) => !p.itemId;
+  const shown = parts.filter((p) => isYou(p) || p.kg !== 0 || p.status === "unknown");
   const zero = parts.filter((p) => !shown.includes(p));
   const half = Math.max(3, Math.ceil(Math.max(...parts.map((p) => Math.abs(p.kg)), Math.abs(total))));
   const signed = (kg: number) => `${kg > 0 ? "+" : kg < 0 ? "−" : ""}${show("weight", Math.abs(kg))}`;
@@ -41,46 +50,46 @@ export function BalanceCard({
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
           <h2 id="bal-h" style={{ margin: 0 }}>
-            Buoyancy balance
+            {t("gear.balance.title")}
           </h2>
           <span className="muted" style={{ fontSize: "0.85rem" }}>
-            at the safety stop, empty BCD, 50 bar left
+            {t("gear.balance.at")}
           </span>
         </div>
-        <div className="segmented" role="radiogroup" aria-label="Water">
+        <div className="segmented" role="radiogroup" aria-label={t("details.water")}>
           {WATERS.map((w) => (
             <button key={w} type="button" role="radio" aria-checked={water === w} onClick={() => setWater(w)}>
-              {WATER_LABEL[w]}
+              {t(`water.name.${w}`)}
             </button>
           ))}
         </div>
       </div>
       <div className="row tank-choice">
-        <span className="muted">Tank</span>
-        <div className="segmented small" role="radiogroup" aria-label="Tank">
+        <span className="muted">{t("gear.kind.tank")}</span>
+        <div className="segmented small" role="radiogroup" aria-label={t("gear.kind.tank")}>
           <button type="button" role="radio" aria-checked={tank === "own"} onClick={() => setTank("own")}>
-            {ownLabel(ownTank)}
+            {ownLabel(ownTank, t)}
           </button>
           {RENTAL_TANK_IDS.map((id) => (
-            <button key={id} type="button" role="radio" aria-checked={tank === id} onClick={() => setTank(id)} title={RENTAL_TANKS[id].name}>
-              {RENTAL_TANKS[id].short[0].toUpperCase() + RENTAL_TANKS[id].short.slice(1)}
+            <button key={id} type="button" role="radio" aria-checked={tank === id} onClick={() => setTank(id)} title={t(`weighting.rental.${id}.name`)}>
+              {((s) => s[0].toUpperCase() + s.slice(1))(t(`weighting.rental.${id}.short`))}
             </button>
           ))}
         </div>
       </div>
       <div className="balance-axis" aria-hidden="true">
-        <span>◂ sinks</span>
-        <span>floats ▸</span>
+        <span>◂ {t("gear.balance.sinks")}</span>
+        <span>{t("gear.balance.floats")} ▸</span>
       </div>
-      <ul className="balance-rows" aria-label={`Buoyancy in ${water} water`}>
+      <ul className="balance-rows" aria-label={t("gear.balance.inWater", { water: t(`water.long.${water}`) })}>
         {shown.map((p) => (
           <li key={p.label}>
             <span className="label">
-              {p.label === "You" ? <strong>You</strong> : p.label}
-              {p.status === "typical" && p.label !== "You" && <span className="tag">typical</span>}
+              {isYou(p) ? <strong>{p.label}</strong> : p.label}
+              {p.status === "typical" && !isYou(p) && <span className="tag">{t("gear.balance.typical")}</span>}
             </span>
             {p.status === "unknown" ? (
-              <span className="track unknown">not known: housings and lights often float 1 kg or more</span>
+              <span className="track unknown">{t("gear.balance.unknown")}</span>
             ) : (
               <span className="track" title={p.why}>
                 {bar(p.kg, p.status === "typical")}
@@ -91,8 +100,8 @@ export function BalanceCard({
         ))}
         {!hasTank && (
           <li>
-            <span className="label secondary">Tank</span>
-            <span className="track missing">not in this set: an aluminium 11 L floats about +1.1 kg at 50 bar, a steel 12 L sinks about 2 kg</span>
+            <span className="label secondary">{t("gear.kind.tank")}</span>
+            <span className="track missing">{t("gear.balance.noTank")}</span>
             <span className="value">–</span>
           </li>
         )}
@@ -100,15 +109,15 @@ export function BalanceCard({
           <li className="zero">
             <details>
               <summary>
-                {zero.length} more at 0 kg: {zero.map((p) => p.label).join(", ")}
+                {t("gear.balance.zero", { n: zero.length, names: zero.map((p) => p.label).join(", ") })}
               </summary>
-              <span className="muted">Small things count as about 0. Add a measured buoyancy to any of them if you know it.</span>
+              <span className="muted">{t("gear.balance.zeroHelp")}</span>
             </details>
           </li>
         )}
         <li className="sum">
           <span className="label">
-            <strong>Everything together</strong>
+            <strong>{t("gear.balance.together")}</strong>
           </span>
           <span className="track">{bar(total, false, true)}</span>
           <span className="value">{signed(total)}</span>

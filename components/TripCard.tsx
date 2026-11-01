@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatDateRange, formatTripWhen } from "@/lib/format";
+import { useLang, useT } from "@/lib/i18n/useLang";
 import type { TripRow } from "@/lib/tripViews";
 import { Icon } from "./Icons";
 import { useUnits } from "./Units";
@@ -10,56 +11,59 @@ import { useUnits } from "./Units";
  */
 export function TripCard({ trip: t }: { trip: TripRow }) {
   const { range } = useUnits();
+  const tr = useT();
+  const lang = useLang();
   const left = t.cards - t.prepared;
   const depth = (s: TripRow["chosenSites"][number]) => range("depth", s.minDepthM, s.maxDepthM);
   const past = t.when === "past";
   return (
     <Link href={`/trips/${t.id}`} className="card trip-card">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <span className="eyebrow">{formatTripWhen(t)}</span>
+        <span className="eyebrow">{formatTripWhen(t, new Date(), lang)}</span>
         {past ? (
-          <span className="badge">
-            {t.loggedDives} dive{t.loggedDives === 1 ? "" : "s"} logged
-          </span>
+          <span className="badge">{tr("tripCard.logged", { n: t.loggedDives })}</span>
         ) : (
           t.cards > 0 &&
           (t.toCheck > 0 || left > 0 ? (
             <span className="badge warning">
               {Icon.alert}
-              {[t.toCheck ? `${t.toCheck} to check` : null, left ? `${left} to prepare` : null].filter(Boolean).join(" · ")}
+              {[t.toCheck ? tr("tripCard.toCheck", { n: t.toCheck }) : null, left ? tr("tripCard.toPrepare", { n: left }) : null].filter(Boolean).join(" · ")}
             </span>
           ) : (
-            <span className="badge good">{Icon.check}All prepared</span>
+            <span className="badge good">
+              {Icon.check}
+              {tr("tripCard.allPrepared")}
+            </span>
           ))
         )}
       </div>
       <h2>{t.name}</h2>
       <span className="secondary">
         {[
-          formatDateRange(t.startDate, t.endDate),
+          formatDateRange(t.startDate, t.endDate, lang),
           t.destination?.toLowerCase() === t.name.toLowerCase() ? null : t.destination,
-          t.diveDays ? `${t.diveDays} dive day${t.diveDays === 1 ? "" : "s"}` : null,
+          t.diveDays ? tr("tripCard.diveDays", { n: t.diveDays }) : null,
         ]
           .filter(Boolean)
           .join(" · ")}
       </span>
       {!past && t.openTodos > 0 && (
         <span className="muted" style={{ fontSize: "0.85rem" }}>
-          {t.openTodos} to sort out before you go
+          {tr("tripCard.openTodos", { n: t.openTodos })}
         </span>
       )}
       {t.chosenSites.length > 0 && (
         <span className="muted" style={{ fontSize: "0.85rem" }}>
-          Dive sites: {t.chosenSites.map((s) => [s.name, depth(s)].filter(Boolean).join(" ")).join(" · ")}
+          {tr("tripCard.sites", { sites: t.chosenSites.map((s) => [s.name, depth(s)].filter(Boolean).join(" ")).join(" · ") })}
         </span>
       )}
       {!past && t.cards > 0 && (
         <div className="stack" style={{ gap: "0.35rem" }}>
-          <div className="meter" role="img" aria-label={`${t.prepared} of ${t.cards} dive cards prepared`}>
+          <div className="meter" role="img" aria-label={tr("tripCard.prepared", { done: t.prepared, n: t.cards })}>
             <span style={{ width: `${(100 * t.prepared) / t.cards}%` }} />
           </div>
           <span className="muted" style={{ fontSize: "0.85rem" }}>
-            {t.prepared} of {t.cards} dive cards prepared
+            {tr("tripCard.prepared", { done: t.prepared, n: t.cards })}
           </span>
         </div>
       )}

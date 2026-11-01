@@ -3,31 +3,34 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { Key, T } from "@/lib/i18n";
+import { useT } from "@/lib/i18n/useLang";
 import { Glyph } from "./NavIcons";
 import { useKeptCopy } from "./Offline";
 
 /** On a phone the first ones are the tab bar; the rest open from More. */
-const LINKS = [
-  { href: "/", label: "Dashboard", icon: "dashboard" },
-  { href: "/dives", label: "Dive log", icon: "log" },
-  { href: "/trips", label: "Trips", icon: "trips" },
-  { href: "/gear", label: "Gear", icon: "gear" },
+const LINKS: { href: string; label: Key; icon: string }[] = [
+  { href: "/", label: "nav.dashboard", icon: "dashboard" },
+  { href: "/dives", label: "nav.log", icon: "log" },
+  { href: "/trips", label: "nav.trips", icon: "trips" },
+  { href: "/gear", label: "nav.gear", icon: "gear" },
 ];
-const MORE_LINKS = [
-  { href: "/import", label: "Import", icon: "import" },
-  { href: "/companion", label: "Companion", icon: "companion" },
-  { href: "/settings", label: "Settings", icon: "settings" },
+const MORE_LINKS: typeof LINKS = [
+  { href: "/import", label: "nav.import", icon: "import" },
+  { href: "/companion", label: "nav.companion", icon: "companion" },
+  { href: "/settings", label: "nav.settings", icon: "settings" },
 ];
 
 type Storage = { active: "local" | "onedrive" | "google"; location: string };
 
 /** Where the log is kept, short enough for the menu; the full place is in the tooltip. */
-function storageLabel(s: Storage) {
+function storageLabel(s: Storage, t: T) {
   if (s.active === "google") return s.location;
-  return s.active === "onedrive" ? "OneDrive" : "This computer";
+  return s.active === "onedrive" ? "OneDrive" : t("nav.thisComputer");
 }
 
 export function Nav() {
+  const t = useT();
   const path = usePathname();
   const current = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const [storage, setStorage] = useState<Storage | null>(null);
@@ -53,18 +56,18 @@ export function Nav() {
     </Link>
   );
   const live = (
-    <div className={`live ${kept ? "offline" : ""}`} title={kept ? "Your log can't be reached: showing what was kept." : "Updates live when your companion in Claude Code or Codex changes the log."}>
+    <div className={`live ${kept ? "offline" : ""}`} title={kept ? t("nav.offlineTitle") : t("nav.liveTitle")}>
       <span className="status">
         <span className={`dot ${kept ? "warning" : "good"}`} />
-        <strong>{kept ? "Offline" : "Live"}</strong>
+        <strong>{kept ? t("nav.offline") : t("nav.live")}</strong>
       </span>
-      {storage && <span title={storage.location}>{storageLabel(storage)}</span>}
+      {storage && <span title={storage.location}>{storageLabel(storage, t)}</span>}
     </div>
   );
   const link = (l: (typeof LINKS)[number]) => (
     <Link key={l.href} href={l.href} className="link" aria-current={current(l.href) ? "page" : undefined}>
       <Glyph icon={l.icon} />
-      {l.label}
+      {t(l.label)}
     </Link>
   );
 
@@ -75,7 +78,7 @@ export function Nav() {
         {brand}
         {live}
       </header>
-      <nav className={`nav ${moreOpen ? "more-open" : ""}`} aria-label="Main">
+      <nav className={`nav ${moreOpen ? "more-open" : ""}`} aria-label={t("nav.main")}>
         {brand}
         {LINKS.map(link)}
         <button
@@ -87,7 +90,7 @@ export function Nav() {
           onClick={() => setMoreOn(moreOpen ? null : path)}
         >
           <Glyph icon="more" />
-          More
+          {t("nav.more")}
         </button>
         <div className="more-links" id="more-links">
           {MORE_LINKS.map(link)}

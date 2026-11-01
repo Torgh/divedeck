@@ -110,6 +110,10 @@ seconds on Google Drive).
 - **Companion** chat (with an API key), **Import** with a summary of what came in, and **Settings**.
 - **Get started** on the dashboard until the first steps are done: where the log lives, the first
   dives, and connecting your companion.
+- **English, Polish or Spanish** (*Settings → Language*, on the phone under *Your file*), saved in
+  the browser; until you pick one, the browser's or phone's language. Findings, progress notes, trip
+  preparation and the lead estimate follow it, and so does a debrief asked for in the app; the MCP
+  server keeps English (your companion answers in the language you write in).
 - **Metric or imperial** (m, bar, °C, L or ft, psi, °F, cu ft) for everything the pages show; the
   log, the analysis and the texts stay metric, and ppO2 stays in bar.
 - A long debrief folds into its sections; saving a tank size or gas for several dives can be undone.
@@ -257,6 +261,9 @@ with the newer changes wins); the old place keeps its copy. The MCP server follo
      this redirect URI to TripDeck's client and use the same client ID and secret here.
   4. Paste the client ID and secret into Settings and click **Connect Google Drive**.
 
+  When Google stops accepting the sign-in (it expired or was revoked), Settings says so and offers
+  **Reconnect Google Drive**: you sign in again and the dives stay where they are.
+
 Settings, API keys, the Google sign-in and the locks always stay in the data folder on this computer.
 The phone export never includes them.
 
@@ -378,6 +385,7 @@ lib/
   format.ts, units.ts, py.ts, sha256.ts   formatting; SI units; Python-compatible rounding; SHA-256
   measure.ts     metric or imperial for what the pages show
   sections.ts    a long Markdown text split at its main headings, to fold
+  i18n/          the app's texts in English (the reference), Polish and Spanish; useLang picks one
   exportFile.ts  the whole log in one .divedeck.json file for the phone app, and reading it back
   server/
     diveStore.ts, tripStore.ts   the dive and trip files on any backend; parsing again after parser upgrades

@@ -6,6 +6,7 @@
  */
 
 import { analyzeDive, type DiveAnalysis } from "./analysis";
+import type { Lang } from "./i18n";
 import { type Dive, type GasMix, gasLabel } from "./dive";
 import type { Water } from "./kit";
 import { PARSER_VERSION } from "./uddf";
@@ -99,8 +100,8 @@ export function effectiveDive(record: DiveRecord): Dive {
   return dive;
 }
 
-export function analyzeRecord(record: DiveRecord): DiveAnalysis {
-  return analyzeDive(effectiveDive(record));
+export function analyzeRecord(record: DiveRecord, lang: Lang = "en"): DiveAnalysis {
+  return analyzeDive(effectiveDive(record), lang);
 }
 
 /** "2026-09-25 2029 Koparki (3f2a…).dive.json": sortable, readable, and found again by its id. */

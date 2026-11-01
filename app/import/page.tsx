@@ -4,6 +4,8 @@ import Link from "next/link";
 import { type DragEvent, useEffect, useState } from "react";
 import { Icon } from "@/components/Icons";
 import { api } from "@/components/useLive";
+import { rich } from "@/lib/i18n/rich";
+import { useT } from "@/lib/i18n/useLang";
 import type { LogView } from "@/lib/views";
 
 type Result = { file: string; added?: number; duplicates?: number; error?: string };
@@ -13,46 +15,44 @@ function ImportSummary({ results, after }: { results: Result[]; after: { dives: 
   const added = results.reduce((n, r) => n + (r.added ?? 0), 0);
   const known = results.reduce((n, r) => n + (r.duplicates ?? 0), 0);
   const failed = results.filter((r) => r.error).length;
+  const t = useT();
   return (
     <section className="card import-summary" aria-live="polite" aria-labelledby="imported-h">
       <h2 id="imported-h" style={{ margin: 0 }}>
-        Imported
+        {t("import.imported")}
       </h2>
       <div>
-        <span className="big">
-          {added} new dive{added === 1 ? "" : "s"}
-        </span>
+        <span className="big">{t("import.newDives", { n: added })}</span>
         <span className="muted">
-          {known ? ` · ${known} already in the log` : ""}
-          {failed ? ` · ${failed} file${failed === 1 ? "" : "s"} couldn't be read` : ""}
+          {known ? ` · ${t("import.known", { n: known })}` : ""}
+          {failed ? ` · ${t("import.failed", { n: failed })}` : ""}
         </span>
       </div>
       <ul>
         {results.map((r) => (
           <li key={r.file}>
-            <span className={`severity ${r.error ? "critical" : "good"}`} role="img" aria-label={r.error ? "Failed" : "Read"}>
+            <span className={`severity ${r.error ? "critical" : "good"}`} role="img" aria-label={r.error ? t("import.fileFailed") : t("import.fileRead")}>
               {r.error ? Icon.stop : Icon.check}
             </span>
             <span>
-              {r.file}: {r.error ? <span style={{ color: "var(--critical)" }}>{r.error}</span> : `${r.added} new, ${r.duplicates} already in the log`}
+              {r.file}: {r.error ? <span style={{ color: "var(--critical)" }}>{r.error}</span> : t("import.fileResult", { added: r.added ?? 0, n: r.duplicates ?? 0 })}
             </span>
           </li>
         ))}
       </ul>
       {after && after.toSortOut > 0 && (
         <div className="notice">
-          {after.toSortOut} of your {after.dives} dives miss a detail (tank size, gas, site or a debrief). Filling them in gives you gas consumption and
-          the ppO2 checks.
+          {t("import.toSortOut", { count: after.toSortOut, n: after.dives })}
         </div>
       )}
       <div className="row">
         {after && after.toSortOut > 0 && (
           <Link className="button primary" href="/">
-            Sort them out
+            {t("import.sortOut")}
           </Link>
         )}
         <Link className="button" href="/dives">
-          Open the dive log
+          {t("sure.openLog")}
         </Link>
       </div>
     </section>
@@ -60,6 +60,7 @@ function ImportSummary({ results, after }: { results: Result[]; after: { dives: 
 }
 
 export default function ImportPage() {
+  const t = useT();
   const [results, setResults] = useState<Result[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,7 +74,7 @@ export default function ImportPage() {
       const res = await fetch("/api/dives", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const log: LogView = await res.json();
-      setAfter({ dives: log.dives.length, toSortOut: new Set(log.todos.flatMap((t) => t.dives)).size });
+      setAfter({ dives: log.dives.length, toSortOut: new Set(log.todos.flatMap((todo) => todo.dives)).size });
     } catch {
       setAfter(null);
     }
@@ -112,12 +113,12 @@ export default function ImportPage() {
     try {
       if (what === "samples") {
         const { added } = await api<{ added: number }>("/api/import/samples", "POST");
-        setMessage(added ? `Loaded ${added} sample dives.` : "The sample dives are already in your log.");
+        setMessage(added ? t("import.samplesLoaded", { n: added }) : t("import.samplesThere"));
       } else {
         const r = await api<{ added: number; alreadyThere: number; reviews: number; failed: { fileName: string }[] }>("/api/migrate", "POST");
         setMessage(
-          `Copied ${r.added} dives and ${r.reviews} reviews from the Python version (${r.alreadyThere} were already here)` +
-            (r.failed.length ? `; couldn't read ${r.failed.map((f) => f.fileName).join(", ")}.` : "."),
+          t("import.migrated", { added: r.added, reviews: r.reviews, there: r.alreadyThere }) +
+            (r.failed.length ? `; ${t("import.unreadable", { files: r.failed.map((f) => f.fileName).join(", ") })}` : "."),
         );
       }
       await refreshLog();
@@ -137,7 +138,7 @@ export default function ImportPage() {
   return (
     <div className="stack">
       <div className="page-head">
-        <h1>Import dives</h1>
+        <h1>{t("log.import")}</h1>
       </div>
       <div
         className={`card dropzone ${over ? "over" : ""}`}
@@ -149,14 +150,13 @@ export default function ImportPage() {
         onDrop={drop}
       >
         <p>
-          Drop .uddf files here, exported from Subsurface, Shearwater Cloud, Garmin Dive, Suunto DM5, MacDive or DiveMate, or the .divedeck.json file the phone app sends
-          with the dives imported there.
+          {t("import.drop")}
         </p>
         <label className="button primary">
-          {busy ? "Importing…" : "Choose files"}
+          {busy ? t("import.importing") : t("import.choose")}
           <input type="file" accept=".uddf,.xml,.json" multiple hidden disabled={busy} onChange={(e) => e.target.files && upload(e.target.files)} />
         </label>
-        <p className="muted">Dives already in your log are skipped. The original files are kept, so dives are parsed again when the parser improves.</p>
+        <p className="muted">{t("import.skipped")}</p>
       </div>
 
       {results && <ImportSummary results={results} after={after} />}
@@ -169,20 +169,18 @@ export default function ImportPage() {
       <div className="grid cols-2">
         {python?.available && (
           <div className="card">
-            <h2>From the Python version</h2>
-            <p className="secondary">
-              Copy every dive and saved review from <code>{python.database}</code>. The database is only read; running it again adds nothing twice.
-            </p>
+            <h2>{t("import.pythonTitle")}</h2>
+            <p className="secondary">{rich(t("import.python", { database: python.database }), { code: (s) => <code>{s}</code> })}</p>
             <button className="button" disabled={busy} onClick={() => run("migrate")}>
-              Copy my old log
+              {t("import.copyOld")}
             </button>
           </div>
         )}
         <div className="card">
-          <h2>No dive computer at hand?</h2>
-          <p className="secondary">Load nine fictional dives that show a diver&apos;s progression from spring to autumn, including a trimix deco dive.</p>
+          <h2>{t("import.noComputer")}</h2>
+          <p className="secondary">{t("import.samplesHelp")}</p>
           <button className="button" disabled={busy} onClick={() => run("samples")}>
-            Load sample dives
+            {t("start.samples")}
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLive } from "@/components/useLive";
+import { useT } from "@/lib/i18n/useLang";
 import type { GearKind, GearSet, Water } from "@/lib/kit";
 import { BalanceCard } from "@/components/gear/BalanceCard";
 import { EMPTY_ITEM, type ItemForm } from "./_parts/ItemEditor";
@@ -15,40 +16,41 @@ import { YouStrip } from "@/components/gear/YouStrip";
 
 export default function GearPage() {
   const { data, error, loading, reload } = useLive<Data>("/api/kit");
+  const t = useT();
   const [setId, setSetId] = useState<string | null>(null);
   const [waterChoice, setWaterChoice] = useState<Water | null>(null);
   const [tank, setTank] = useState<TankChoice>("own");
   const [editingItem, setEditingItem] = useState<ItemForm | null>(null);
   const [editingSet, setEditingSet] = useState<GearSet | "new" | null>(null);
   const [editYou, setEditYou] = useState(0);
-  if (error && !data) return <div className="error">Couldn&apos;t load your gear: {error}</div>;
-  if (!data) return <p className="muted">Loading your gear…</p>;
+  if (error && !data) return <div className="error">{t("gearPage.loadFailed", { error })}</div>;
+  if (!data) return <p className="muted">{t("gearPage.loading")}</p>;
 
   const set = data.sets.find((s) => s.id === setId) ?? data.sets[0] ?? null;
   const water = waterChoice ?? set?.water ?? "salt";
   const estimate = set ? (tank === "own" ? data.estimates[set.id]?.[water] : data.rentalEstimates?.[set.id]?.[tank]?.[water]) : undefined;
   const ownTank = set ? data.items.find((i) => i.kind === "tank" && set.itemIds.includes(i.id)) : undefined;
   const hasTank = tank !== "own" || !!ownTank;
-  const you = estimate?.parts.find((p) => p.label === "You");
+  const you = estimate?.parts.find((p) => !p.itemId);
   const addItem = (kind: GearKind = "suit") => setEditingItem({ ...EMPTY_ITEM, kind, material: "aluminium" });
 
   return (
     <div className={`stack ${loading ? "loading" : ""}`} style={{ gap: "1.25rem" }}>
       <div className="page-head">
-        <h1>Gear</h1>
+        <h1>{t("nav.gear")}</h1>
         <div className="row" style={{ gap: "0.5rem" }}>
           <button className="button" type="button" onClick={() => addItem()}>
-            Add gear
+            {t("gearPage.addGear")}
           </button>
           <button className="button primary" type="button" onClick={() => setEditingSet("new")}>
-            New set
+            {t("gearPage.newSet")}
           </button>
         </div>
       </div>
 
       <YouStrip key={editYou} kit={data} you={you} water={water} startEditing={editYou > 0} onSaved={reload} />
 
-      <div className="tabs set-tabs" role="tablist" aria-label="Sets">
+      <div className="tabs set-tabs" role="tablist" aria-label={t("gearPage.sets")}>
         {data.sets.map((s) => (
           <button
             key={s.id}
@@ -61,11 +63,11 @@ export default function GearPage() {
               setEditingSet(null);
             }}
           >
-            {s.name} <span className="muted">· {s.itemIds.length} items</span>
+            {s.name} <span className="muted">· {t("gearPage.items", { n: s.itemIds.length })}</span>
           </button>
         ))}
         <button type="button" role="tab" aria-selected={false} className="new-set" onClick={() => setEditingSet("new")}>
-          + New set
+          + {t("gearPage.newSet")}
         </button>
       </div>
 
@@ -85,20 +87,25 @@ export default function GearPage() {
       {set && !editingSet && (
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="secondary">
-            {[set.ballastKg !== undefined ? `usually ${set.ballastKg} kg of lead` : null, set.water ? `meant for ${set.water} water` : null, set.notes].filter(Boolean).join(" · ") ||
-              "No usual lead or water noted for this set."}
+            {[
+              set.ballastKg !== undefined ? t("gearPage.usualLead", { kg: set.ballastKg }) : null,
+              set.water ? t("gearPage.meantFor", { water: t(`water.long.${set.water}`) }) : null,
+              set.notes,
+            ]
+              .filter(Boolean)
+              .join(" · ") || t("gearPage.noUsual")}
           </span>
           <button className="button small" type="button" onClick={() => setEditingSet(set)}>
-            Edit set
+            {t("gearPage.editSet")}
           </button>
         </div>
       )}
 
       {!set && !editingSet && (
         <div className="notice row" style={{ justifyContent: "space-between" }}>
-          <span>Put your gear together in a set (what you dive with in a lake, in warm water…): the page then shows how much lead it needs in each water.</span>
+          <span>{t("gearPage.noSet")}</span>
           <button className="button small" type="button" onClick={() => setEditingSet("new")}>
-            Create a set
+            {t("gearPage.createSet")}
           </button>
         </div>
       )}

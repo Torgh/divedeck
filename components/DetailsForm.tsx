@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 import { gasLabel } from "@/lib/dive";
+import { useT } from "@/lib/i18n/useLang";
 import { type Kit, type Water, waterOf } from "@/lib/kit";
 import type { WeightingEstimate } from "@/lib/weighting";
 import type { DiveDetails } from "@/lib/record";
@@ -23,6 +24,7 @@ export function DetailsForm({ id, details, site, kit, onSaved }: { id: string; d
     water: details.water ?? "",
     weighting: details.weighting ?? "",
   };
+  const t = useT();
   const [form, setForm] = useState(initial);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -36,12 +38,12 @@ export function DetailsForm({ id, details, site, kit, onSaved }: { id: string; d
     e.preventDefault();
     const volume = form.tankVolumeL.trim().replace(",", ".");
     if (volume && !(Number(volume) > 0)) {
-      setStatus({ ok: false, text: "The tank volume is a number of litres, e.g. 12." });
+      setStatus({ ok: false, text: t("details.badVolume") });
       return;
     }
     const lead = form.ballastKg.trim().replace(",", ".");
     if (lead && !(Number(lead) >= 0)) {
-      setStatus({ ok: false, text: "The lead is a number of kilograms, e.g. 8." });
+      setStatus({ ok: false, text: t("details.badLead") });
       return;
     }
     setSaving(true);
@@ -58,7 +60,7 @@ export function DetailsForm({ id, details, site, kit, onSaved }: { id: string; d
         water: form.water || null,
         weighting: form.weighting || null,
       });
-      setStatus({ ok: true, text: "Saved. The analysis below uses it now." });
+      setStatus({ ok: true, text: t("details.saved") });
       onSaved();
     } catch (err) {
       setStatus({ ok: false, text: (err as Error).message });
@@ -70,29 +72,29 @@ export function DetailsForm({ id, details, site, kit, onSaved }: { id: string; d
   return (
     <form className="form" onSubmit={save}>
       <label>
-        Dive site
-        <input value={form.site} onChange={set("site")} placeholder="e.g. Koparki" />
+        {t("details.site")}
+        <input value={form.site} onChange={set("site")} placeholder={t("details.sitePlaceholder")} />
       </label>
       <label>
-        Location
-        <input value={form.location} onChange={set("location")} placeholder="Region or country" />
+        {t("details.location")}
+        <input value={form.location} onChange={set("location")} placeholder={t("details.locationPlaceholder")} />
       </label>
       <label>
-        Buddy
+        {t("details.buddy")}
         <input value={form.buddy} onChange={set("buddy")} />
       </label>
       <label>
-        Tank volume (L)
-        <input value={form.tankVolumeL} onChange={set("tankVolumeL")} inputMode="decimal" placeholder="e.g. 12, or 24 for twin 12s" />
+        {t("details.volume")}
+        <input value={form.tankVolumeL} onChange={set("tankVolumeL")} inputMode="decimal" placeholder={t("details.volumePlaceholder")} />
       </label>
       <label>
-        Gas
+        {t("details.gas")}
         <input value={form.gas} onChange={set("gas")} placeholder="air, EAN32, Tx 18/45" />
       </label>
       <label>
-        Gear set
+        {t("details.gearSet")}
         <select value={form.gearSetId} onChange={set("gearSetId")}>
-          <option value="">{kit?.sets.length ? "None" : "No sets yet (Gear page)"}</option>
+          <option value="">{kit?.sets.length ? t("details.noSet") : t("details.noSetsYet")}</option>
           {kit?.sets.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -101,48 +103,48 @@ export function DetailsForm({ id, details, site, kit, onSaved }: { id: string; d
         </select>
       </label>
       <label>
-        Lead carried (kg)
+        {t("details.lead")}
         <input
           value={form.ballastKg}
           onChange={set("ballastKg")}
           inputMode="decimal"
           placeholder={(() => {
             const usual = kit?.sets.find((s) => s.id === form.gearSetId)?.ballastKg;
-            return usual !== undefined ? `usually ${usual}` : "e.g. 8";
+            return usual !== undefined ? t("details.usually", { kg: usual }) : t("details.leadPlaceholder");
           })()}
         />
       </label>
       {estimate && (
         <p className="wide muted" style={{ margin: "-0.3rem 0 0" }}>
-          Estimated for this set in {estimate.water} water: <strong>{estimate.leadKg === null ? "–" : `${estimate.leadKg} kg`}</strong>
-          {estimate.calibration ? `, corrected by ${estimate.calibration.dives} of your dives` : ""} (details on the Gear page).
+          {t("details.estimated", { water: t(`water.long.${estimate.water}`) })} <strong>{estimate.leadKg === null ? "–" : `${estimate.leadKg} kg`}</strong>
+          {estimate.calibration ? `, ${t("weighting.confidence.corrected", { n: estimate.calibration.dives })}` : ""} {t("details.onGearPage")}
         </p>
       )}
       <label>
-        Water
+        {t("details.water")}
         <select value={form.water} onChange={set("water")}>
-          <option value="">{siteWater ? `As the site: ${siteWater}` : "Not set (set it per site on the Gear page)"}</option>
-          <option value="fresh">Fresh</option>
-          <option value="brackish">Brackish</option>
-          <option value="salt">Salt</option>
+          <option value="">{siteWater ? t("details.asSite", { water: t(`water.name.${siteWater}`) }) : t("details.waterNotSet")}</option>
+          <option value="fresh">{t("water.name.fresh")}</option>
+          <option value="brackish">{t("water.name.brackish")}</option>
+          <option value="salt">{t("water.name.salt")}</option>
         </select>
       </label>
       <label>
-        Weighting felt
+        {t("details.felt")}
         <select value={form.weighting} onChange={set("weighting")}>
-          <option value="">Not noted</option>
-          <option value="light">Too light</option>
-          <option value="ok">Just right</option>
-          <option value="heavy">Too heavy</option>
+          <option value="">{t("details.notNoted")}</option>
+          <option value="light">{t("feel.light")}</option>
+          <option value="ok">{t("feel.ok")}</option>
+          <option value="heavy">{t("feel.heavy")}</option>
         </select>
       </label>
       <label className="wide">
-        Notes
+        {t("details.notes")}
         <textarea value={form.notes} onChange={set("notes")} rows={3} />
       </label>
       <div className="row wide">
         <button className="button primary" type="submit" disabled={saving}>
-          {saving ? "Saving…" : "Save details"}
+          {saving ? t("common.saving") : t("details.save")}
         </button>
         {status && (
           <span className={status.ok ? "secondary" : ""} role="status" style={status.ok ? undefined : { color: "var(--critical)" }}>

@@ -152,7 +152,7 @@ describe("parts and how sure", () => {
     expect(sure).toEqual({ level: "high", score: 100, reasons: ["corrected by 4 of your dives"] });
     const unsure = confidenceOf([{ label: "Cam", kg: 0, assumed: true, status: "unknown", why: "" }], false, { dives: 1, offsetKg: 0 });
     expect(unsure).toMatchObject({ level: "low", score: 43 });
-    expect(unsure.reasons).toEqual(["no tank in the set", "1 unknown", "corrected by 1 of your dive"]);
+    expect(unsure.reasons).toEqual(["no tank in the set", "1 unknown", "corrected by 1 of your dives"]);
     expect(confidenceOf([], false, null)).toMatchObject({ level: "low", score: 40 });
   });
 });

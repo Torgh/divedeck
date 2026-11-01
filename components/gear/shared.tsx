@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useUnits } from "@/components/Units";
 import { api } from "@/components/useLive";
+import type { Key } from "@/lib/i18n";
 import type { GearKind, Kit, KitChange, Water } from "@/lib/kit";
 import type { Part, RentalTank, WeightingEstimate } from "@/lib/weighting";
 
@@ -15,25 +16,10 @@ export type Data = Kit & {
 /** Your own tank, or one rented from the dive centre. */
 export type TankChoice = "own" | RentalTank;
 
-export const KIND_LABEL: Record<GearKind, string> = {
-  suit: "Suit",
-  hood: "Hood",
-  gloves: "Gloves",
-  boots: "Boots",
-  bcd: "BCD / wing",
-  regulator: "Regulators",
-  tank: "Tank",
-  fins: "Fins",
-  computer: "Computer",
-  light: "Light",
-  camera: "Camera",
-  other: "Other",
-};
-export const WATER_LABEL: Record<Water, string> = { fresh: "Fresh", brackish: "Brackish", salt: "Salt" };
-export const GROUPS: { title: string; kinds: GearKind[] }[] = [
-  { title: "Exposure", kinds: ["suit", "hood", "gloves", "boots"] },
-  { title: "BCD, tank, breathing", kinds: ["bcd", "tank", "regulator"] },
-  { title: "Accessories", kinds: ["fins", "computer", "light", "camera", "other"] },
+export const GROUPS: { title: Key; kinds: GearKind[] }[] = [
+  { title: "gear.group.exposure", kinds: ["suit", "hood", "gloves", "boots"] },
+  { title: "gear.group.breathing", kinds: ["bcd", "tank", "regulator"] },
+  { title: "gear.group.accessories", kinds: ["fins", "computer", "light", "camera", "other"] },
 ];
 
 /** 24×24 stroke icons, one per kind of gear. */

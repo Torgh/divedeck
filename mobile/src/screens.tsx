@@ -8,6 +8,7 @@ import { GearCard } from "@/components/gear/GearCard";
 import { ResultCard } from "@/components/gear/ResultCard";
 import { GROUPS, type TankChoice } from "@/components/gear/shared";
 import { YouStrip } from "@/components/gear/YouStrip";
+import { LanguagePicker } from "@/components/LanguagePicker";
 import { ProfileCharts } from "@/components/ProfileCharts";
 import { SummaryTiles } from "@/components/SummaryTiles";
 import { BeforeYouGo, DiveDays, RecurringIssues, tripLine } from "@/components/TripPrep";
@@ -17,6 +18,8 @@ import { TripCard } from "@/components/TripCard";
 import { useUnits } from "@/components/Units";
 import type { DiveDeckExport } from "@/lib/exportFile";
 import { formatDate } from "@/lib/format";
+import { rich } from "@/lib/i18n/rich";
+import { useLang, useT } from "@/lib/i18n/useLang";
 import type { Kit, Water } from "@/lib/kit";
 import type { DiveRecord } from "@/lib/record";
 import type { TripPlan } from "@/lib/trip";
@@ -32,57 +35,57 @@ export function localTime(iso: string): string | null {
 }
 
 /** Where the file comes from, said the same way on every screen that asks for it. */
-const HOW = (
-  <>
-    On the PC, open DiveDeck&apos;s <strong>Settings → Export for phone</strong>, then put the file where the phone can open it: Google Drive,
-    OneDrive, Downloads or an email.
-  </>
-);
+function How() {
+  const t = useT();
+  return <>{rich(t("phone.how"), { b: (s) => <strong>{s}</strong> })}</>;
+}
 
 export function Welcome({ onImport }: { onImport: () => void }) {
+  const t = useT();
   return (
     <div className="stack welcome" style={{ gap: "1.25rem" }}>
       <img src="./icon.svg" alt="" width={72} height={72} />
-      <h1>Your dives, offline</h1>
-      <p className="secondary">Your log, debriefs and trip preparation from DiveDeck on the PC, on the boat too. {HOW}</p>
+      <h1>{t("phone.welcome")}</h1>
+      <p className="secondary">
+        {t("phone.welcomeText")} <How />
+      </p>
       <button type="button" className="button primary" onClick={onImport}>
-        Import your DiveDeck file
+        {t("phone.importFile")}
       </button>
+      <LanguagePicker />
     </div>
   );
 }
 
 /** Dives imported on the phone that the PC doesn't have yet, with the way to send them. */
 function OnPhoneNotice({ count }: { count: number }) {
+  const t = useT();
   if (!count) return null;
-  return (
-    <div className="notice">
-      {count} dive{count === 1 ? " is" : "s are"} only on this phone. <a href="#/file">Send to the PC</a> to keep {count === 1 ? "it" : "them"} and get your
-      companion&apos;s debrief.
-    </div>
-  );
+  return <div className="notice">{rich(t("phone.onlyHere", { n: count }), { a: (s) => <a href="#/file">{s}</a> })}</div>;
 }
 
 export function Home({ log, next, onPhone }: { log: LogView; next: TripRow | null; onPhone: number }) {
+  const t = useT();
   return (
     <div className="stack" style={{ gap: "1.25rem" }}>
       <div className="page-head">
-        <h1>Dashboard</h1>
+        <h1>{t("nav.dashboard")}</h1>
       </div>
       <OnPhoneNotice count={onPhone} />
       {next && <TripCard trip={next} />}
-      {log.dives.length ? <SummaryTiles log={log} /> : <div className="notice">No dives in this file yet.</div>}
+      {log.dives.length ? <SummaryTiles log={log} /> : <div className="notice">{t("phone.noDives")}</div>}
     </div>
   );
 }
 
 export function LogScreen({ log }: { log: LogView }) {
+  const t = useT();
   return (
     <div className="stack" style={{ gap: "1.25rem" }}>
       <div className="page-head">
-        <h1>Dive log</h1>
+        <h1>{t("nav.log")}</h1>
       </div>
-      {log.dives.length ? <DiveList log={log} /> : <div className="notice">No dives in this file yet.</div>}
+      {log.dives.length ? <DiveList log={log} /> : <div className="notice">{t("phone.noDives")}</div>}
     </div>
   );
 }
@@ -90,18 +93,20 @@ export function LogScreen({ log }: { log: LogView }) {
 /** One dive, as on the PC, without the forms: the phone only shows the log. */
 export function DiveScreen({ records, id, onPhone }: { records: DiveRecord[]; id: string; onPhone: boolean }) {
   const { show } = useUnits();
+  const t = useT();
+  const lang = useLang();
   const [tab, setTab] = useState<"debrief" | "findings">("debrief");
-  const data = diveView(records, id);
-  if (!data) return <div className="notice">This dive isn&apos;t in the file. <a href="#/dives">Back to the dive log</a>.</div>;
+  const data = diveView(records, id, lang);
+  if (!data) return <div className="notice">{rich(t("phone.noDive"), { a: (s) => <a href="#/dives">{s}</a> })}</div>;
   const { dive, metrics, details } = data;
   const site = [dive.site, dive.location].filter(Boolean).join(", ");
   const facts: [string, string | undefined][] = [
-    ["Site", site || undefined],
-    ["Buddy", details.buddy],
-    ["Tank", data.tanks[0]?.volumeL ? show("volume", data.tanks[0].volumeL) : undefined],
-    ["Lead", details.ballastKg !== undefined ? `${details.ballastKg} kg` : undefined],
-    ["Weighting", details.weighting && { light: "too light", ok: "right", heavy: "too heavy" }[details.weighting]],
-    ["Notes", details.notes],
+    [t("phone.site"), site || undefined],
+    [t("details.buddy"), details.buddy],
+    [t("gear.kind.tank"), data.tanks[0]?.volumeL ? show("volume", data.tanks[0].volumeL) : undefined],
+    [t("phone.lead"), details.ballastKg !== undefined ? `${details.ballastKg} kg` : undefined],
+    [t("phone.weighting"), details.weighting && t(`feel.${details.weighting}`)],
+    [t("details.notes"), details.notes],
   ];
   const known = facts.filter((f): f is [string, string] => !!f[1]);
 
@@ -110,19 +115,19 @@ export function DiveScreen({ records, id, onPhone }: { records: DiveRecord[]; id
       <div className="dive-head">
         <div>
           <a className="back" href="#/dives">
-            ‹ Dive log
+            ‹ {t("nav.log")}
           </a>
-          <h1>Dive #{data.seq}</h1>
-          <div className="secondary">{[formatDate(dive.start), metrics.gases.join(", ") || "gas unknown", site || null].filter(Boolean).join(" · ")}</div>
+          <h1>{t("dive.title", { seq: data.seq })}</h1>
+          <div className="secondary">{[formatDate(dive.start, true, lang), metrics.gases.join(", ") || t("diveList.gasUnknown"), site || null].filter(Boolean).join(" · ")}</div>
         </div>
-        <nav className="row" aria-label="Other dives">
+        <nav className="row" aria-label={t("dive.other")}>
           {data.prevId && (
-            <a className="button" href={`#/dives/${data.prevId}`} aria-label={`Previous dive, #${data.seq - 1}`}>
+            <a className="button" href={`#/dives/${data.prevId}`} aria-label={t("dive.previous", { seq: data.seq - 1 })}>
               ‹ #{data.seq - 1}
             </a>
           )}
           {data.nextId && (
-            <a className="button" href={`#/dives/${data.nextId}`} aria-label={`Next dive, #${data.seq + 1}`}>
+            <a className="button" href={`#/dives/${data.nextId}`} aria-label={t("dive.next", { seq: data.seq + 1 })}>
               #{data.seq + 1} ›
             </a>
           )}
@@ -131,14 +136,14 @@ export function DiveScreen({ records, id, onPhone }: { records: DiveRecord[]; id
 
       {onPhone && (
         <div className="notice">
-          Imported on this phone. <a href="#/file">Send it to the PC</a> to keep it, fill in its details and get your companion&apos;s debrief.
+          {rich(t("phone.importedHere"), { a: (s) => <a href="#/file">{s}</a> })}
         </div>
       )}
 
-      <section className="card verdict" aria-label="Score">
+      <section className="card verdict" aria-label={t("dive.score")}>
         <ScoreRing score={metrics.score} />
         <div style={{ flex: "1 1 320px" }}>
-          <p className="headline">{headline(data.findings)}</p>
+          <p className="headline">{headline(data.findings, t)}</p>
           <div className="row" style={{ gap: "0.5rem" }}>
             {data.findings.map((f, i) => (
               <FindingBadge key={`${f.title}${i}`} finding={f} />
@@ -148,22 +153,22 @@ export function DiveScreen({ records, id, onPhone }: { records: DiveRecord[]; id
       </section>
 
       <section className="card" aria-labelledby="profile-h">
-        <h2 id="profile-h">Profile</h2>
+        <h2 id="profile-h">{t("summary.profile")}</h2>
         <ProfileCharts view={data} />
       </section>
 
       <MetricCards data={data} />
 
-      <section className="card" aria-label="Debrief and findings">
+      <section className="card" aria-label={t("dive.debriefAndFindings")}>
         <div className="tabs" role="tablist">
           {(
             [
-              { id: "debrief", label: "Debrief" },
-              { id: "findings", label: `Findings (${data.findings.length})` },
+              { id: "debrief", label: t("diveList.debrief") },
+              { id: "findings", label: t("dive.findings", { n: data.findings.length }) },
             ] as const
-          ).map((t) => (
-            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
-              {t.label}
+          ).map((x) => (
+            <button key={x.id} type="button" role="tab" aria-selected={tab === x.id} onClick={() => setTab(x.id)}>
+              {x.label}
             </button>
           ))}
         </div>
@@ -173,17 +178,17 @@ export function DiveScreen({ records, id, onPhone }: { records: DiveRecord[]; id
           ) : data.review ? (
             <div className="review">
               <FoldedMarkdown key={data.review.savedAt} markdown={data.review.markdown} />
-              <p className="muted">Saved {formatDate(data.review.savedAt.slice(0, 19))}</p>
+              <p className="muted">{t("common.savedOn", { date: formatDate(data.review.savedAt.slice(0, 19), true, lang) })}</p>
             </div>
           ) : (
-            <p className="muted">No debrief yet. {onPhone ? "Send the dive to the PC, ask your companion there" : "Ask your companion on the PC"}, then export again.</p>
+            <p className="muted">{onPhone ? t("phone.noDebriefHere") : t("phone.noDebrief")}</p>
           )}
         </div>
       </section>
 
       {known.length > 0 && (
         <section className="card metric-card" aria-labelledby="details-h">
-          <h3 id="details-h">Details</h3>
+          <h3 id="details-h">{t("dive.details")}</h3>
           {known.map(([label, value]) => (
             <div key={label} className="kv">
               <span>{label}</span>
@@ -211,19 +216,20 @@ function Group({ title, trips }: { title: string; trips: TripRow[] }) {
 }
 
 export function TripsScreen({ trips }: { trips: TripRow[] }) {
-  const of = (...when: TripRow["when"][]) => trips.filter((t) => when.includes(t.when));
+  const t = useT();
+  const of = (...when: TripRow["when"][]) => trips.filter((trip) => when.includes(trip.when));
   return (
     <div className="stack" style={{ gap: "1.25rem" }}>
       <div className="page-head">
-        <h1>Trips</h1>
+        <h1>{t("nav.trips")}</h1>
       </div>
       {!trips.length ? (
-        <div className="notice">No trips in this file. Ask your companion on the PC to prepare a TripDeck trip, then export again.</div>
+        <div className="notice">{t("phone.noTrips")}</div>
       ) : (
         <>
-          <Group title="Coming up" trips={of("now", "upcoming")} />
-          <Group title="No dates yet" trips={of("undated")} />
-          <Group title="Past" trips={of("past")} />
+          <Group title={t("trips.comingUp")} trips={of("now", "upcoming")} />
+          <Group title={t("format.noDatesYet")} trips={of("undated")} />
+          <Group title={t("trips.past")} trips={of("past")} />
         </>
       )}
     </div>
@@ -232,29 +238,31 @@ export function TripsScreen({ trips }: { trips: TripRow[] }) {
 
 /** One trip's preparation, as on the PC; the to-dos, sites and logged dives are changed there. */
 export function TripScreen({ plans, records, id, now }: { plans: TripPlan[]; records: DiveRecord[]; id: string; now: Date }) {
-  const data = tripView(plans, records, id, now);
-  if (!data) return <div className="notice">This trip isn&apos;t in the file. <a href="#/trips">Back to the trips</a>.</div>;
+  const t = useT();
+  const lang = useLang();
+  const data = tripView(plans, records, id, now, lang);
+  if (!data) return <div className="notice">{rich(t("phone.noTrip"), { a: (s) => <a href="#/trips">{s}</a> })}</div>;
   return (
     <div className="stack" style={{ gap: "1.25rem" }}>
       <div className="dive-head">
         <div>
           <a className="back" href="#/trips">
-            ‹ Trips
+            ‹ {t("nav.trips")}
           </a>
           <h1>{data.name}</h1>
-          <div className="secondary">{tripLine(data)}</div>
+          <div className="secondary">{tripLine(data, t, lang)}</div>
         </div>
       </div>
 
-      <TripTodos todos={data.todos} cards={data.dives.map((d) => ({ itemId: d.itemId, title: d.date ? `${d.title} (${formatDate(d.date, false)})` : d.title }))} />
+      <TripTodos todos={data.todos} cards={data.dives.map((d) => ({ itemId: d.itemId, title: d.date ? `${d.title} (${formatDate(d.date, false, lang)})` : d.title }))} />
 
       <BeforeYouGo data={data} />
 
       <RecurringIssues data={data} />
 
       <section className="card review" aria-labelledby="notes-h">
-        <h2 id="notes-h">Trip notes</h2>
-        {data.summary ? <FoldedMarkdown markdown={data.summary.markdown} /> : <p className="muted">No notes for the whole trip yet. Ask your companion on the PC, then export again.</p>}
+        <h2 id="notes-h">{t("trip.notes")}</h2>
+        {data.summary ? <FoldedMarkdown markdown={data.summary.markdown} /> : <p className="muted">{t("phone.noNotes")}</p>}
       </section>
 
       <TripSites trip={data.name} shop={data.shop} sites={data.sites} notes={data.siteNotes} />
@@ -266,12 +274,17 @@ export function TripScreen({ plans, records, id, now }: { plans: TripPlan[]; rec
 
 /** Your sets and the lead each needs, worked out on the phone as on the PC; the gear is changed there. */
 export function GearScreen({ kit, records }: { kit: Kit; records: DiveRecord[] }) {
+  const t = useT();
+  const lang = useLang();
   const [setId, setSetId] = useState<string | null>(null);
   const [waterChoice, setWaterChoice] = useState<Water | null>(null);
   const [tank, setTank] = useState<TankChoice>("own");
   const set = kit.sets.find((s) => s.id === setId) ?? kit.sets[0] ?? null;
   const water = waterChoice ?? set?.water ?? "salt";
-  const estimate = useMemo(() => (set ? estimateWeighting(kit, records, set, water, undefined, tank === "own" ? null : tank) : undefined), [kit, records, set, water, tank]);
+  const estimate = useMemo(
+    () => (set ? estimateWeighting(kit, records, set, water, undefined, tank === "own" ? null : tank, lang) : undefined),
+    [kit, records, set, water, tank, lang],
+  );
   const ownTank = set ? kit.items.find((i) => i.kind === "tank" && set.itemIds.includes(i.id)) : undefined;
   const hasTank = tank !== "own" || !!ownTank;
   const inSet = set ? kit.items.filter((i) => set.itemIds.includes(i.id)) : kit.items;
@@ -280,13 +293,13 @@ export function GearScreen({ kit, records }: { kit: Kit; records: DiveRecord[] }
   return (
     <div className="stack" style={{ gap: "1.25rem" }}>
       <div className="page-head">
-        <h1>Gear</h1>
+        <h1>{t("nav.gear")}</h1>
       </div>
 
-      <YouStrip kit={kit} you={parts.find((p) => p.label === "You")} water={water} />
+      <YouStrip kit={kit} you={parts.find((p) => !p.itemId)} water={water} />
 
       {kit.sets.length > 1 && (
-        <div className="tabs set-tabs" role="tablist" aria-label="Sets">
+        <div className="tabs set-tabs" role="tablist" aria-label={t("gearPage.sets")}>
           {kit.sets.map((s) => (
             <button
               key={s.id}
@@ -307,13 +320,17 @@ export function GearScreen({ kit, records }: { kit: Kit; records: DiveRecord[] }
       {set ? (
         <span className="secondary">
           <strong>{set.name}</strong>
-          {[set.ballastKg !== undefined ? `usually ${set.ballastKg} kg of lead` : null, set.water ? `meant for ${set.water} water` : null, set.notes]
+          {[
+            set.ballastKg !== undefined ? t("gearPage.usualLead", { kg: set.ballastKg }) : null,
+            set.water ? t("gearPage.meantFor", { water: t(`water.long.${set.water}`) }) : null,
+            set.notes,
+          ]
             .filter(Boolean)
-            .map((t) => ` · ${t}`)
+            .map((x) => ` · ${x}`)
             .join("")}
         </span>
       ) : (
-        <div className="notice">No gear sets in this file. Put your gear together in a set on the PC, then export again.</div>
+        <div className="notice">{t("phone.noSets")}</div>
       )}
 
       {set && estimate && (
@@ -325,14 +342,14 @@ export function GearScreen({ kit, records }: { kit: Kit; records: DiveRecord[] }
 
       <section className="stack" style={{ gap: "0.75rem" }} aria-labelledby="items-h">
         <h2 id="items-h" style={{ margin: 0 }}>
-          {set ? "In this set" : "Your gear"}
+          {set ? t("items.inSet") : t("items.yours")}
         </h2>
-        {!kit.items.length && <p className="muted">No gear in this file yet.</p>}
+        {!kit.items.length && <p className="muted">{t("phone.noGear")}</p>}
         {GROUPS.map((g) => {
           const items = inSet.filter((i) => g.kinds.includes(i.kind));
           return items.length ? (
             <div key={g.title} className="stack" style={{ gap: "0.5rem" }}>
-              <h3 className="group-title">{g.title}</h3>
+              <h3 className="group-title">{t(g.title)}</h3>
               <div className="gear-grid">
                 {items.map((item) => (
                   <GearCard key={item.id} item={item} part={parts.find((p) => p.itemId === item.id)} />
@@ -344,7 +361,7 @@ export function GearScreen({ kit, records }: { kit: Kit; records: DiveRecord[] }
       </section>
 
       <p className="muted" style={{ margin: 0 }}>
-        An estimate: the weight check in the water decides. Change your gear, sets and the water at your sites on the PC, then export again.
+        {t("phone.estimate")}
       </p>
     </div>
   );
@@ -364,55 +381,57 @@ export function FileScreen({
   onSend: () => void;
   onForget: () => void;
 }) {
+  const t = useT();
+  const lang = useLang();
   return (
     <div className="stack" style={{ gap: "1.25rem" }}>
       <div className="page-head">
-        <h1>Your file</h1>
+        <h1>{t("phone.yourFile")}</h1>
       </div>
       <div className="card stack">
         <p style={{ margin: 0 }}>
-          Exported on <strong>{formatDate(localTime(log.exportedAt))}</strong>: {log.dives.length} dive{log.dives.length === 1 ? "" : "s"},{" "}
-          {log.trips.length} trip{log.trips.length === 1 ? "" : "s"}, units {log.units}.
+          {rich(
+            t("phone.exportedOn", {
+              date: formatDate(localTime(log.exportedAt), true, lang),
+              dives: t("log.count", { n: log.dives.length }),
+              trips: t("phone.trips", { n: log.trips.length }),
+              units: log.units,
+            }),
+            { b: (s) => <strong>{s}</strong> },
+          )}
         </p>
         <p className="secondary" style={{ margin: 0 }}>
-          The phone shows the log as it was then. To bring new dives, debriefs or trip preparation over, export again. {HOW}
+          {t("phone.asThen")} <How />
         </p>
         <div className="row">
           <button type="button" className="button primary" onClick={onImport}>
-            Import a newer file
+            {t("phone.importNewer")}
           </button>
           <button type="button" className="button" onClick={onForget}>
-            Remove from this phone
+            {t("phone.remove")}
           </button>
         </div>
       </div>
       <section className="card stack" aria-labelledby="uddf-h">
         <h2 id="uddf-h" style={{ margin: 0 }}>
-          Dives from your dive computer
+          {t("phone.fromComputer")}
         </h2>
         <p className="secondary" style={{ margin: 0 }}>
-          Away from the PC, import a .uddf file from your dive computer&apos;s app (Shearwater Cloud, Garmin Dive, Suunto, Subsurface…): its dives show in your log
-          here at once. Then send them to the PC, import that file on its Import page, and they are in your log for good.
+          {t("phone.fromComputerHelp")}
         </p>
-        {onPhone > 0 && (
-          <p style={{ margin: 0 }}>
-            <strong>
-              {onPhone} dive{onPhone === 1 ? "" : "s"}
-            </strong>{" "}
-            only on this phone. They stay here until an export from the PC holds them.
-          </p>
-        )}
+        {onPhone > 0 && <p style={{ margin: 0 }}>{rich(t("phone.onlyOnPhone", { n: onPhone }), { b: (s) => <strong>{s}</strong> })}</p>}
         <div className="row">
           <button type="button" className={`button ${onPhone ? "" : "primary"}`} onClick={onImport}>
-            Import a UDDF file
+            {t("phone.importUddf")}
           </button>
           {onPhone > 0 && (
             <button type="button" className="button primary" onClick={onSend}>
-              Send to PC
+              {t("phone.send")}
             </button>
           )}
         </div>
       </section>
+      <LanguagePicker />
     </div>
   );
 }
