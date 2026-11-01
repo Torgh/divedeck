@@ -350,7 +350,24 @@ describe("storage API", () => {
     expect(readSettings()).toMatchObject({ storage: "onedrive", oneDriveFolder: oneDrive });
 
     const client = await (await storagePost(req("POST", { googleClientId: "id", googleClientSecret: "secret" }), {})).json();
-    expect(client.google).toEqual({ clientConfigured: true, clientId: "id", account: null });
+    expect(client.google).toEqual({ clientConfigured: true, clientId: "id", account: null, expired: false });
     expect(JSON.stringify(client)).not.toContain("secret\"");
+  });
+
+  it("says when Google no longer accepts the saved sign-in, so the page offers to reconnect", async () => {
+    await storagePost(req("POST", { googleClientId: "id", googleClientSecret: "secret" }), {});
+    connectGoogle();
+    const view = async () => (await (await storageGet(req("GET"), {})).json()).google;
+    expect(await view()).toMatchObject({ account: "diver@example.com", expired: false });
+
+    // The access token ran out and Google refuses the refresh token: revoked or expired.
+    const file = path.join(home, "google-token.json");
+    fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), expiresAt: 0 }));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 })));
+    expect(await view()).toMatchObject({ account: "diver@example.com", expired: true });
+
+    // A network failure isn't an expired sign-in.
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("network down"); }));
+    expect(await view()).toMatchObject({ expired: false });
   });
 });

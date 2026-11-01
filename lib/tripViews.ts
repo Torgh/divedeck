@@ -3,6 +3,7 @@
  * preparation, the numbers behind it (computed now, from the log as it is) and the logged dives.
  */
 
+import type { Lang } from "./i18n";
 import { type DivePrep, prepareDive, recurringNote } from "./prep";
 import { analyzeRecord, chronological, type DiveRecord, effectiveDive } from "./record";
 import { type SavedText, siteForCard, type TripDive, type TripFlight, type TripPlan, type TripShop, type TripSite, type TripTodo } from "./trip";
@@ -196,7 +197,8 @@ export function flightAfterDiving(plan: TripPlan): FlightCheck | null {
   };
 }
 
-export function tripView(plans: TripPlan[], records: DiveRecord[], id: string, today: Date = new Date()): TripView | null {
+/** A saved trip for the app; the preparation's texts in `lang`. */
+export function tripView(plans: TripPlan[], records: DiveRecord[], id: string, today: Date = new Date(), lang: Lang = "en"): TripView | null {
   const plan = plans.find((p) => p.id === id);
   if (!plan) return null;
   const log = chronological(records);
@@ -217,14 +219,14 @@ export function tripView(plans: TripPlan[], records: DiveRecord[], id: string, t
     summary: plan.summary,
     breakBefore: breakBefore(plan, plans, records),
     flight: flightAfterDiving(plan),
-    recurringIssues: prepareDive(records, { date: row.startDate ?? undefined }, today).recurringIssues,
+    recurringIssues: prepareDive(records, { date: row.startDate ?? undefined }, today, lang).recurringIssues,
     shop: plan.shop ?? null,
     sites: plan.sites ?? [],
     siteNotes: plan.siteNotes ?? null,
     todos: plan.todos ?? [],
     dives: plan.dives.map(({ prep, loggedDiveIds, ...card }) => {
-      const facts = prepareDive(records, { site: card.site, maxDepthM: card.maxDepthM, gas: card.gas, dives: card.dives, date: card.date }, today);
-      const shared = recurringNote(facts.recurringIssues);
+      const facts = prepareDive(records, { site: card.site, maxDepthM: card.maxDepthM, gas: card.gas, dives: card.dives, date: card.date }, today, lang);
+      const shared = recurringNote(facts.recurringIssues, lang);
       return {
         ...card,
         prep,

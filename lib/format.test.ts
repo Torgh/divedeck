@@ -19,7 +19,7 @@ describe("format", () => {
   });
 
   it("formats a trip's dates and when it is", () => {
-    expect(formatDateRange("2027-05-08", "2027-05-15")).toBe("8–15 May 2027");
+    expect(formatDateRange("2027-05-08", "2027-05-15")).toBe("8 – 15 May 2027");
     expect(formatDateRange("2027-04-28", "2027-05-03")).toBe("28 Apr – 3 May 2027");
     expect(formatDateRange("2026-12-28", "2027-01-04")).toBe("28 Dec 2026 – 4 Jan 2027");
     expect(formatDateRange("2027-05-08", "2027-05-08")).toBe("8 May 2027");

@@ -10,6 +10,9 @@ import { siteFacts } from "@/components/TripSites";
 import { useUnits } from "@/components/Units";
 import { api } from "@/components/useLive";
 import { formatDate, formatDateRange, formatNumber, formatTripWhen } from "@/lib/format";
+import { LOCALE, type Lang, type T } from "@/lib/i18n";
+import { rich } from "@/lib/i18n/rich";
+import { useLang, useT } from "@/lib/i18n/useLang";
 import { REFRESHER_DAYS } from "@/lib/prep";
 import type { TripSite } from "@/lib/trip";
 import type { LoggedDiveLink, TripCardView, TripView } from "@/lib/tripViews";
@@ -24,13 +27,13 @@ export interface TripEdit {
 }
 
 /** Where and when, how many dive days: the line under the trip's name. */
-export function tripLine(data: TripView): string {
+export function tripLine(data: TripView, t: T, lang: Lang): string {
   const dives = data.dives.reduce((n, d) => n + (d.dives ?? 1), 0);
   return [
     data.destination?.toLowerCase() === data.name.toLowerCase() ? null : data.destination,
-    formatDateRange(data.startDate, data.endDate),
-    formatTripWhen(data).toLowerCase(),
-    data.cards ? `${data.diveDays} dive day${data.diveDays === 1 ? "" : "s"}, ${dives} dive${dives === 1 ? "" : "s"}` : null,
+    formatDateRange(data.startDate, data.endDate, lang),
+    formatTripWhen(data, new Date(), lang).toLowerCase(),
+    data.cards ? `${t("tripCard.diveDays", { n: data.diveDays })}, ${t("prep.ui.dives", { n: dives })}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -38,14 +41,16 @@ export function tripLine(data: TripView): string {
 
 function DiveLink({ dive }: { dive: LoggedDiveLink }) {
   const { show } = useUnits();
-  if (dive.seq === null) return <span className="muted">A dive no longer in the log</span>;
+  const t = useT();
+  const lang = useLang();
+  if (dive.seq === null) return <span className="muted">{t("prep.ui.goneDive")}</span>;
   return (
     <>
       <Link href={`/dives/${dive.id}`}>
-        #{dive.seq} · {formatDate(dive.start)}
+        #{dive.seq} · {formatDate(dive.start, true, lang)}
       </Link>{" "}
       <span className="secondary">
-        {[dive.site, show("depth", dive.maxDepthM), formatNumber(dive.durationMin, 0, "min"), `score ${dive.score}`].filter(Boolean).join(" · ")}
+        {[dive.site, show("depth", dive.maxDepthM), formatNumber(dive.durationMin, 0, "min", lang), t("prep.ui.score", { score: dive.score ?? "–" })].filter(Boolean).join(" · ")}
       </span>
     </>
   );
@@ -54,34 +59,36 @@ function DiveLink({ dive }: { dive: LoggedDiveLink }) {
 /** The numbers the preparation stands on, from the dives logged before the card's day. */
 function Facts({ card }: { card: TripCardView }) {
   const { show } = useUnits();
+  const t = useT();
+  const lang = useLang();
   const { experience: e, gasPlan: g } = card.facts;
   const depth = card.maxDepthM;
   return (
     <div className="tiles">
       <div className="tile">
-        <div className="label">{depth ? `Dives to ${show("depth", Math.max(0, depth - 3), 0)} or deeper` : "Dives before this one"}</div>
+        <div className="label">{depth ? t("prep.ui.divesTo", { depth: show("depth", Math.max(0, depth - 3), 0) }) : t("prep.ui.divesBefore")}</div>
         <div className="value">{depth ? e.divesNearPlannedDepth : e.dives}</div>
-        <div className="note">deepest {show("depth", e.deepestM)}</div>
+        <div className="note">{t("prep.ui.deepest", { depth: show("depth", e.deepestM) })}</div>
       </div>
       <div className="tile">
-        <div className="label">Since the last dive</div>
-        <div className="value">{e.daysSinceLastDive === null ? "–" : `${e.daysSinceLastDive} days`}</div>
-        <div className="note">{e.divesInLast12Months} dives in the 12 months before</div>
+        <div className="label">{t("prep.ui.sinceLast")}</div>
+        <div className="value">{e.daysSinceLastDive === null ? "–" : t("prep.ui.days", { n: e.daysSinceLastDive })}</div>
+        <div className="note">{t("prep.ui.last12", { n: e.divesInLast12Months })}</div>
       </div>
       <div className="tile">
-        <div className="label">Gas at {depth ? show("depth", depth, 0) : "depth"}</div>
+        <div className="label">{t("prep.ui.gasAt", { depth: depth ? show("depth", depth, 0) : t("prep.ui.depth") })}</div>
         <div className="value">{show("flow", g.consumptionAtMaxDepthLMin, 0)}</div>
-        <div className="note">your RMV {show("flow", g.rmvLMin)}</div>
+        <div className="note">{t("prep.ui.yourRmv", { rmv: show("flow", g.rmvLMin) })}</div>
       </div>
       <div className="tile">
-        <div className="label">ppO2 at max depth</div>
-        <div className="value">{formatNumber(g.ppo2AtMaxDepth, 2, "bar")}</div>
+        <div className="label">{t("prep.ui.ppo2AtMax")}</div>
+        <div className="value">{formatNumber(g.ppo2AtMaxDepth, 2, "bar", lang)}</div>
         <div className="note">
           {g.modM !== null
             ? `MOD ${show("depth", g.modM)}`
             : card.facts.gas?.family === "nitrox" && g.bestNitroxPercent !== null
-              ? `richest nitrox EAN${g.bestNitroxPercent}`
-              : "mix not known yet"}
+              ? t("prep.ui.richest", { best: g.bestNitroxPercent })
+              : t("prep.ui.mixUnknown")}
         </div>
       </div>
     </div>
@@ -90,31 +97,34 @@ function Facts({ card }: { card: TripCardView }) {
 
 const DAY_MS = 86_400_000;
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS);
-const dayPart = (date: string, part: "month" | "weekday") => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { [part]: "short", timeZone: "UTC" });
+const dayPart = (date: string, part: "month" | "weekday", lang: Lang) =>
+  new Date(`${date}T00:00:00Z`).toLocaleDateString(LOCALE[lang], { [part]: "short", timeZone: "UTC" });
 
 /** The card's verdict as on TripDeck (ready / check), else whether it is prepared at all. */
 function CardStatus({ card }: { card: TripCardView }) {
+  const t = useT();
   if (card.verdict?.status === "check" || !card.prep)
     return (
       <span className="badge warning">
         {Icon.alert}
-        {card.verdict?.status === "check" ? "Check" : "Not prepared"}
+        {card.verdict?.status === "check" ? t("prep.ui.check") : t("prep.ui.notPrepared")}
       </span>
     );
   return (
     <span className="badge good">
       {Icon.check}
-      {card.verdict?.status === "ready" ? "Ready" : "Prepared"}
+      {card.verdict?.status === "ready" ? t("prep.ui.ready") : t("prep.ui.prepared")}
     </span>
   );
 }
 
-const flightTime = (f: { date: string; time?: string }) => `${formatDate(f.date, false)}${f.time ? `, ${f.time}` : ""}`;
+const flightTime = (f: { date: string; time?: string }, lang: Lang) => `${formatDate(f.date, false, lang)}${f.time ? `, ${f.time}` : ""}`;
 
 /** The proposed site a card is about: its depths and distance, and why it suits you, linked to the site below. */
 function CardSite({ site }: { site: TripSite }) {
   const { range } = useUnits();
-  const line = siteFacts(site, (min, max) => range("depth", min, max));
+  const t = useT();
+  const line = siteFacts(site, (min, max) => range("depth", min, max), t);
   return (
     <div className="card-site">
       <a href={`#site-${site.id}`}>
@@ -127,6 +137,8 @@ function CardSite({ site }: { site: TripSite }) {
 }
 
 function DayCard({ card, sites, open, edit }: { card: TripCardView; sites: TripSite[]; open: boolean; edit?: TripEdit }) {
+  const t = useT();
+  const lang = useLang();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -148,14 +160,14 @@ function DayCard({ card, sites, open, edit }: { card: TripCardView; sites: TripS
 
   const plan = [
     card.site && card.site !== card.title ? card.site : null,
-    card.maxDepthM ? `to ${card.maxDepthM} m` : null,
+    card.maxDepthM ? t("prep.ui.to", { depth: `${card.maxDepthM} m` }) : null,
     card.gas,
-    card.dives && card.dives > 1 ? `${card.dives} dives` : null,
+    card.dives && card.dives > 1 ? t("prep.ui.dives", { n: card.dives }) : null,
     card.center,
     card.startTime,
   ].filter(Boolean);
   // The missing RMV is on the trip's "Gas plan" tile once, not on every card.
-  const notes = card.facts.gasPlan.rmvLMin === null ? card.notes.filter((n) => !n.startsWith("No gas consumption in the log")) : card.notes;
+  const notes = card.facts.gasPlan.rmvLMin === null ? card.notes.filter((n) => n !== t("prep.noRmv")) : card.notes;
   // The verdict's line says it best; without one, the first note.
   const [first, ...more] = card.verdict?.summary ? [card.verdict.summary, ...notes] : notes;
   const { comparable } = card.facts;
@@ -169,59 +181,59 @@ function DayCard({ card, sites, open, edit }: { card: TripCardView; sites: TripS
           <>
             <span className="num">{Number(card.date.slice(8, 10))}</span>
             <span>
-              {dayPart(card.date, "month")} · {dayPart(card.date, "weekday")}
+              {dayPart(card.date, "month", lang)} · {dayPart(card.date, "weekday", lang)}
             </span>
           </>
         ) : (
-          <span>{card.day ? `Day ${card.day}` : "–"}</span>
+          <span>{card.day ? t("prep.ui.day", { day: card.day }) : "–"}</span>
         )}
       </div>
       <div className="stack" style={{ gap: "0.4rem", flex: "1 1 auto", minWidth: 0 }}>
         <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem" }}>
           <h3 id={`title-${card.itemId}`} style={{ margin: 0, fontSize: "1.05rem" }}>
-            {card.date && <span className="visually-hidden">{formatDate(card.date, false)}: </span>}
+            {card.date && <span className="visually-hidden">{formatDate(card.date, false, lang)}: </span>}
             {card.title}
           </h3>
           <span className="row" style={{ gap: "0.35rem" }}>
             {card.openTodos > 0 && (
               <a className="badge" href="#todos">
-                {card.openTodos} to do
+                {t("prep.ui.toDo", { n: card.openTodos })}
               </a>
             )}
             <CardStatus card={card} />
           </span>
         </div>
         <span className="secondary" style={{ fontSize: "0.9rem" }}>
-          {plan.join(" · ") || "No depth or gas on the card yet"}
+          {plan.join(" · ") || t("prep.ui.noPlan")}
         </span>
         {card.siteInfo && <CardSite site={card.siteInfo} />}
         {edit && sites.length > 0 && (
           <label className="card-site-pick">
-            <span className="muted">Dive site</span>
+            <span className="muted">{t("details.site")}</span>
             <select value={card.siteId ?? ""} disabled={busy} onChange={(e) => pickSite(e.target.value)}>
-              <option value="">{card.siteId ? "Find it by name" : `By name${card.siteInfo ? `: ${card.siteInfo.name}` : ": none found"}`}</option>
+              <option value="">{card.siteId ? t("prep.ui.byName") : t("prep.ui.byNameFound", { name: card.siteInfo ? card.siteInfo.name : t("prep.ui.noneFound") })}</option>
               {sites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
-                  {s.status === "chosen" ? " (chosen)" : s.status === "dropped" ? " (not for this trip)" : ""}
+                  {s.status === "chosen" ? ` (${t("prep.ui.chosen")})` : s.status === "dropped" ? ` (${t("prep.ui.dropped")})` : ""}
                 </option>
               ))}
-              <option value="none">No site</option>
+              <option value="none">{t("diveList.noSite")}</option>
             </select>
           </label>
         )}
         {first && <p style={{ margin: 0 }}>{first}</p>}
 
         <details open={open}>
-          <summary>Full preparation</summary>
+          <summary>{t("prep.ui.full")}</summary>
           <div className="stack" style={{ marginTop: "0.6rem" }}>
             {card.prep ? (
               <div className="review">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{card.prep.markdown}</ReactMarkdown>
-                <p className="muted">Saved {formatDate(card.prep.savedAt.slice(0, 19))}</p>
+                <p className="muted">{t("common.savedOn", { date: formatDate(card.prep.savedAt.slice(0, 19), true, lang) })}</p>
               </div>
             ) : (
-              <p className="muted">Your companion hasn&apos;t prepared this dive yet.</p>
+              <p className="muted">{t("prep.ui.notYet")}</p>
             )}
             <Facts card={card} />
             {more.length > 0 && (
@@ -235,7 +247,7 @@ function DayCard({ card, sites, open, edit }: { card: TripCardView; sites: TripS
             )}
             {comparable.length > 0 && (
               <div>
-                <h4 style={{ margin: "0 0 0.3rem" }}>Your closest dives</h4>
+                <h4 style={{ margin: "0 0 0.3rem" }}>{t("prep.ui.closest")}</h4>
                 <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
                   {comparable.slice(0, 3).map((d) => (
                     <li key={d.id}>
@@ -250,19 +262,19 @@ function DayCard({ card, sites, open, edit }: { card: TripCardView; sites: TripS
 
         {(card.logged.length > 0 || thatDay.length > 0) && (
           <div>
-            <h4 style={{ margin: "0.3rem 0" }}>Logged</h4>
+            <h4 style={{ margin: "0.3rem 0" }}>{t("prep.ui.logged")}</h4>
             <ul className="logged">
               {card.logged.map((d) => (
                 <li key={d.id}>
                   <span>
-                    <span className="severity good" role="img" aria-label="Linked">
+                    <span className="severity good" role="img" aria-label={t("prep.ui.linked")}>
                       {Icon.check}
                     </span>{" "}
                     <DiveLink dive={d} />
                   </span>
                   {edit && (
                     <button className="button" disabled={busy} onClick={() => link(d.id, false)}>
-                      Unlink
+                      {t("prep.ui.unlink")}
                     </button>
                   )}
                 </li>
@@ -273,7 +285,7 @@ function DayCard({ card, sites, open, edit }: { card: TripCardView; sites: TripS
                     <DiveLink dive={d} />
                   </span>
                   <button className="button" disabled={busy} onClick={() => link(d.id, true)}>
-                    This was the dive
+                    {t("prep.ui.thisWas")}
                   </button>
                 </li>
               ))}
@@ -289,71 +301,69 @@ function DayCard({ card, sites, open, edit }: { card: TripCardView; sites: TripS
 /** A few checks for the whole trip, from the preparation of its first dive. */
 export function BeforeYouGo({ data, edit }: { data: TripView; edit?: boolean }) {
   const { show } = useUnits();
+  const t = useT();
+  const lang = useLang();
   const first = data.dives.find((d) => d.date) ?? data.dives[0];
   if (!first) return null;
   const { gasPlan: g } = first.facts;
   const issue = data.recurringIssues[0];
   const { breakBefore: b, flight: f } = data;
   return (
-    <section className="tiles" aria-label="Before you go">
+    <section className="tiles" aria-label={t("prep.ui.beforeYouGo")}>
       <div className={`card tile ${b && b.days > REFRESHER_DAYS ? "warn" : ""}`}>
-        <div className="label">Break before</div>
-        <div className="value">{b ? `${b.days} day${b.days === 1 ? "" : "s"}` : "–"}</div>
+        <div className="label">{t("prep.ui.breakBefore")}</div>
+        <div className="value">{b ? t("prep.ui.days", { n: b.days }) : "–"}</div>
         <div className="note">
-          {!b ? (
-            "no dives logged before"
-          ) : b.after.kind === "trip" ? (
-            <>
-              after <Link href={`/trips/${b.after.id}`}>{b.after.name}</Link> ({formatDate(b.after.date, false)})
-            </>
-          ) : (
-            `after your last logged dive, #${b.after.seq}`
-          )}
-          {b && b.days > REFRESHER_DAYS ? " · worth a check-out dive first" : ""}
+          {!b
+            ? t("prep.ui.noDivesBefore")
+            : b.after.kind === "trip"
+              ? (({ id, name, date }) =>
+                  rich(t("prep.ui.afterTrip", { date: formatDate(date, false, lang) }), { a: () => <Link href={`/trips/${id}`}>{name}</Link> }))(b.after)
+              : t("prep.ui.afterDive", { seq: b.after.seq })}
+          {b && b.days > REFRESHER_DAYS ? ` · ${t("prep.ui.checkOut")}` : ""}
         </div>
       </div>
       <div className={`card tile ${issue ? "warn" : ""}`}>
-        <div className="label">Keeps coming back</div>
+        <div className="label">{t("prep.ui.keepsComing")}</div>
         <div className="value" style={{ fontSize: "1.1rem" }}>
-          {issue ? issue.title : "Nothing"}
+          {issue ? issue.title : t("prep.ui.nothing")}
         </div>
-        <div className="note">{issue ? `on ${issue.dives} of your last ${issue.of} dives` : "no problem repeats in your last dives"}</div>
+        <div className="note">{issue ? t("prep.ui.onDives", { count: issue.dives, n: issue.of }) : t("prep.ui.noRepeat")}</div>
       </div>
       <div className={`card tile ${g.rmvLMin === null ? "warn" : ""}`}>
-        <div className="label">Gas plan</div>
-        <div className="value">{g.rmvLMin === null ? "No RMV yet" : show("flow", g.rmvLMin)}</div>
+        <div className="label">{t("prep.ui.gasPlan")}</div>
+        <div className="value">{g.rmvLMin === null ? t("prep.ui.noRmv") : show("flow", g.rmvLMin)}</div>
         <div className="note">
-          {g.rmvLMin !== null ? `your RMV, from ${g.rmvDives} dive${g.rmvDives === 1 ? "" : "s"}` : edit ? <Link href="/">add your tank sizes</Link> : "add your tank sizes on the PC"}
+          {g.rmvLMin !== null ? t("prep.ui.rmvFrom", { n: g.rmvDives }) : edit ? <Link href="/">{t("prep.ui.addTanks")}</Link> : t("prep.ui.addTanksPc")}
         </div>
       </div>
       <div className={`card tile ${f && f.hours < f.neededHours ? "warn" : ""}`}>
-        <div className="label">Flying after diving</div>
+        <div className="label">{t("prep.ui.flying")}</div>
         {f ? (
           <>
             <div className="value">
               {formatNumber(f.hours, 0, "h")}{" "}
-              <span className={`severity ${f.hours < f.neededHours ? "warning" : "good"}`} role="img" aria-label={f.hours < f.neededHours ? "Too short" : "Enough"}>
+              <span className={`severity ${f.hours < f.neededHours ? "warning" : "good"}`} role="img" aria-label={f.hours < f.neededHours ? t("prep.ui.tooShort") : t("prep.ui.enough")}>
                 {f.hours < f.neededHours ? Icon.alert : Icon.check}
               </span>
             </div>
             <div className="note">
-              {[f.flight.from && f.flight.to ? `${f.flight.from}→${f.flight.to}` : "flight", flightTime(f.flight)].join(" ")} · DAN: at least {f.neededHours} h
-              {f.timeAssumed ? " · a time was missing, so counted cautiously" : ""}
+              {[f.flight.from && f.flight.to ? `${f.flight.from}→${f.flight.to}` : t("prep.ui.flight"), flightTime(f.flight, lang)].join(" ")} ·{" "}
+              {t("prep.ui.dan", { h: f.neededHours })}
+              {f.timeAssumed ? ` · ${t("prep.ui.timeAssumed")}` : ""}
             </div>
           </>
         ) : (
           <>
             <div className="value">–</div>
-            <div className="note">no flight after the dives saved; trip-prep brings the flights from TripDeck</div>
+            <div className="note">{t("prep.ui.noFlight")}</div>
           </>
         )}
       </div>
       <div className={`card tile ${data.prepared < data.cards || data.toCheck ? "warn" : ""}`}>
-        <div className="label">Prepared</div>
-        <div className="value">
-          {data.prepared} of {data.cards}
-        </div>
-        <div className="note">{data.toCheck ? `${data.toCheck} to check` : "dive cards"}</div>
+        <div className="label">{t("prep.ui.preparedTile")}</div>
+        <div className="value">{t("prep.ui.of", { done: data.prepared, n: data.cards })}</div>
+        <div className="note">{data.toCheck ? t("tripCard.toCheck", { n: data.toCheck }) : t("prep.ui.diveCards")}</div>
       </div>
     </section>
   );
@@ -361,18 +371,20 @@ export function BeforeYouGo({ data, edit }: { data: TripView; edit?: boolean }) 
 
 /** The problems that repeat in the dives before the trip. */
 export function RecurringIssues({ data }: { data: TripView }) {
+  const t = useT();
   if (!data.recurringIssues.length) return null;
   return (
     <section className="card" aria-labelledby="recurring-h">
-      <h2 id="recurring-h">Keeps coming back in your dives</h2>
-      <Findings findings={data.recurringIssues.map((r) => ({ severity: r.severity, title: r.title, detail: `${r.dives} of the last ${r.of} dives before the trip` }))} />
+      <h2 id="recurring-h">{t("prep.ui.recurringTitle")}</h2>
+      <Findings findings={data.recurringIssues.map((r) => ({ severity: r.severity, title: r.title, detail: t("prep.ui.recurringDetail", { count: r.dives, n: r.of }) }))} />
     </section>
   );
 }
 
 /** The dive cards by date, with the days without diving between them; unscheduled ones last. */
 export function DiveDays({ data, edit }: { data: TripView; edit?: TripEdit }) {
-  if (!data.dives.length) return <div className="notice">The trip has no dive cards. Add dives to it in TripDeck and run the preparation again.</div>;
+  const t = useT();
+  if (!data.dives.length) return <div className="notice">{t("prep.ui.noCards")}</div>;
   const dated = data.dives.filter((d) => d.date).sort((a, b) => a.date!.localeCompare(b.date!) || (a.startTime ?? "").localeCompare(b.startTime ?? ""));
   const undated = data.dives.filter((d) => !d.date);
   // Open the first card to check or still to prepare, else the first one.
@@ -380,16 +392,14 @@ export function DiveDays({ data, edit }: { data: TripView; edit?: TripEdit }) {
   return (
     <section className="stack" style={{ gap: "0.75rem" }} aria-labelledby="days-h">
       <h2 id="days-h" style={{ margin: 0 }}>
-        Dive days
+        {t("prep.ui.diveDays")}
       </h2>
       {dated.map((card, i) => {
         const gap = i > 0 ? daysBetween(dated[i - 1].date!, card.date!) - 1 : 0;
         return (
           <div key={card.itemId} className="stack" style={{ gap: "0.75rem" }}>
             {gap > 0 && (
-              <div className="gap-divider">
-                {gap} day{gap === 1 ? "" : "s"} without diving
-              </div>
+              <div className="gap-divider">{t("prep.ui.gap", { n: gap })}</div>
             )}
             <DayCard card={card} sites={data.sites} open={card.itemId === openFirst} edit={edit} />
           </div>
@@ -397,7 +407,7 @@ export function DiveDays({ data, edit }: { data: TripView; edit?: TripEdit }) {
       })}
       {undated.length > 0 && (
         <>
-          {dated.length > 0 && <div className="gap-divider">Not scheduled yet</div>}
+          {dated.length > 0 && <div className="gap-divider">{t("prep.ui.notScheduled")}</div>}
           {undated.map((card) => (
             <DayCard key={card.itemId} card={card} sites={data.sites} open={card.itemId === openFirst} edit={edit} />
           ))}

@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { GEAR_KINDS, type GearItem, type GearKind, type GearSet, type KitChange } from "@/lib/kit";
-import { Failure, KIND_LABEL, num, str, useSave } from "@/components/gear/shared";
+import { Failure, num, str, useSave } from "@/components/gear/shared";
+import { useT } from "@/lib/i18n/useLang";
 
 export const EMPTY_ITEM = {
   id: "",
@@ -58,6 +59,7 @@ export function ItemEditor({ initial, set, onDone }: { initial: ItemForm; set: G
   const [form, setForm] = useState(initial);
   const [intoSet, setIntoSet] = useState(!!set && !initial.id);
   const { save, busy, failure } = useSave();
+  const t = useT();
   const field = (key: keyof ItemForm) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value });
   const k = form.kind;
   const neoprene = k === "suit" || k === "hood" || k === "gloves" || k === "boots";
@@ -74,133 +76,133 @@ export function ItemEditor({ initial, set, onDone }: { initial: ItemForm; set: G
     onDone();
   }
   async function remove() {
-    if (window.confirm(`Remove "${form.name}"? It also leaves the sets it is in.`) && (await save({ remove: { items: [form.id] } }))) onDone();
+    if (window.confirm(t("itemEditor.confirmRemove", { name: form.name })) && (await save({ remove: { items: [form.id] } }))) onDone();
   }
 
   return (
     <form className="form card item-editor" onSubmit={submit}>
       <label>
-        Name
-        <input value={form.name} onChange={field("name")} required placeholder="e.g. Wetsuit 5 mm" />
+        {t("setEditor.name")}
+        <input value={form.name} onChange={field("name")} required placeholder={t("itemEditor.namePlaceholder")} />
       </label>
       <label>
-        Kind
+        {t("itemEditor.kind")}
         <select value={form.kind} onChange={field("kind")}>
           {GEAR_KINDS.map((g) => (
             <option key={g} value={g}>
-              {KIND_LABEL[g]}
+              {t(`gear.kind.${g}`)}
             </option>
           ))}
         </select>
       </label>
       <label>
-        Brand, model
+        {t("itemEditor.brand")}
         <input value={form.brand} onChange={field("brand")} />
       </label>
       {k === "suit" && (
         <label>
-          Suit
+          {t("gear.kind.suit")}
           <select value={form.suitType} onChange={field("suitType")}>
-            <option value="wetsuit">Wetsuit</option>
-            <option value="semidry">Semi-dry</option>
-            <option value="drysuit">Drysuit</option>
+            <option value="wetsuit">{t("gear.suitType.wetsuit")}</option>
+            <option value="semidry">{t("gear.suitType.semidry")}</option>
+            <option value="drysuit">{t("gear.suitType.drysuit")}</option>
           </select>
         </label>
       )}
       {neoprene && !dry && (
         <label>
-          {k === "suit" ? "Torso (mm)" : "Neoprene (mm)"}
-          <input value={form.thicknessMm} onChange={field("thicknessMm")} inputMode="decimal" placeholder="e.g. 3" />
+          {k === "suit" ? t("itemEditor.torso") : t("itemEditor.neoprene")}
+          <input value={form.thicknessMm} onChange={field("thicknessMm")} inputMode="decimal" placeholder={t("gear.eg", { value: 3 })} />
         </label>
       )}
       {k === "suit" && !dry && (
         <label>
-          Arms and legs (mm, if thinner)
-          <input value={form.thicknessLimbsMm} onChange={field("thicknessLimbsMm")} inputMode="decimal" placeholder="e.g. 2 for a 3/2" />
+          {t("itemEditor.limbs")}
+          <input value={form.thicknessLimbsMm} onChange={field("thicknessLimbsMm")} inputMode="decimal" placeholder={t("itemEditor.limbsPlaceholder")} />
         </label>
       )}
       {dry && (
         <label>
-          Undergarment
-          <input value={form.undergarment} onChange={field("undergarment")} placeholder="e.g. 200 g fleece" />
+          {t("itemEditor.undergarment")}
+          <input value={form.undergarment} onChange={field("undergarment")} placeholder={t("itemEditor.undergarmentPlaceholder")} />
         </label>
       )}
       {(k === "suit" || k === "boots" || k === "fins") && (
         <label>
-          Size
-          <input value={form.size} onChange={field("size")} placeholder="e.g. M" />
+          {t("itemEditor.size")}
+          <input value={form.size} onChange={field("size")} placeholder={t("gear.eg", { value: "M" })} />
         </label>
       )}
       {neoprene && (
         <label>
-          Age (years)
+          {t("itemEditor.age")}
           <input value={form.ageYears} onChange={field("ageYears")} inputMode="decimal" />
         </label>
       )}
       {k === "tank" && (
         <>
           <label>
-            Material
+            {t("itemEditor.material")}
             <select value={form.material} onChange={field("material")}>
-              <option value="aluminium">Aluminium</option>
-              <option value="steel">Steel</option>
-              <option value="carbon">Carbon</option>
+              <option value="aluminium">{t("itemEditor.aluminium")}</option>
+              <option value="steel">{t("itemEditor.steel")}</option>
+              <option value="carbon">{t("itemEditor.carbon")}</option>
             </select>
           </label>
           <label>
-            Volume (L)
-            <input value={form.volumeL} onChange={field("volumeL")} inputMode="decimal" placeholder="e.g. 11.1" />
+            {t("itemEditor.volume")}
+            <input value={form.volumeL} onChange={field("volumeL")} inputMode="decimal" placeholder={t("gear.eg", { value: 11.1 })} />
           </label>
           <label>
-            Working pressure (bar)
-            <input value={form.workingPressureBar} onChange={field("workingPressureBar")} inputMode="decimal" placeholder="e.g. 207" />
+            {t("itemEditor.pressure")}
+            <input value={form.workingPressureBar} onChange={field("workingPressureBar")} inputMode="decimal" placeholder={t("gear.eg", { value: 207 })} />
           </label>
           <label>
-            Empty buoyancy (kg, + floats)
-            <input value={form.emptyBuoyancyKg} onChange={field("emptyBuoyancyKg")} inputMode="decimal" placeholder="maker's sheet, e.g. +1.8" />
+            {t("itemEditor.emptyBuoyancy")}
+            <input value={form.emptyBuoyancyKg} onChange={field("emptyBuoyancyKg")} inputMode="decimal" placeholder={t("itemEditor.emptyPlaceholder")} />
           </label>
         </>
       )}
       {k === "bcd" && (
         <label>
-          Backplate
+          {t("itemEditor.backplate")}
           <select value={form.plate} onChange={field("plate")}>
-            <option value="steel">Steel</option>
-            <option value="aluminium">Aluminium</option>
-            <option value="none">None (jacket)</option>
+            <option value="steel">{t("itemEditor.steel")}</option>
+            <option value="aluminium">{t("itemEditor.aluminium")}</option>
+            <option value="none">{t("itemEditor.jacket")}</option>
           </select>
         </label>
       )}
       {k !== "tank" && (
         <label>
-          Buoyancy in water (kg, + floats)
-          <input value={form.buoyancyKg} onChange={field("buoyancyKg")} inputMode="decimal" placeholder="if you weighed it" />
+          {t("itemEditor.buoyancy")}
+          <input value={form.buoyancyKg} onChange={field("buoyancyKg")} inputMode="decimal" placeholder={t("itemEditor.ifWeighed")} />
         </label>
       )}
       <label>
-        Weight on land (kg)
+        {t("itemEditor.weight")}
         <input value={form.weightKg} onChange={field("weightKg")} inputMode="decimal" />
       </label>
       <label className="wide">
-        Notes
+        {t("details.notes")}
         <input value={form.notes} onChange={field("notes")} />
       </label>
       {set && !initial.id && (
         <label className="wide check">
           <input type="checkbox" checked={intoSet} onChange={(e) => setIntoSet(e.target.checked)} />
-          Add it to {set.name}
+          {t("itemEditor.addTo", { set: set.name })}
         </label>
       )}
       <div className="row wide">
         <button className="button primary" type="submit" disabled={busy || !form.name.trim()}>
-          {busy ? "Saving…" : initial.id ? "Save" : "Add"}
+          {busy ? t("common.saving") : initial.id ? t("common.save") : t("common.add")}
         </button>
         <button className="button" type="button" onClick={onDone}>
-          Cancel
+          {t("common.cancel")}
         </button>
         {initial.id && (
           <button className="button" type="button" disabled={busy} onClick={remove} style={{ marginLeft: "auto" }}>
-            Remove
+            {t("common.remove")}
           </button>
         )}
         <Failure text={failure} />

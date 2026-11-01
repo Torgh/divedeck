@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DiveStore } from "@/lib/server/diveStore";
-import { assertLocal, handle, HttpError, readBody } from "@/lib/server/http";
+import { assertLocal, handle, HttpError, langOf, readBody } from "@/lib/server/http";
 import { TripStore } from "@/lib/server/tripStore";
 import { logVersion } from "@/lib/server/version";
 import { tripView } from "@/lib/tripViews";
@@ -12,7 +12,7 @@ export const GET = handle(async (req, { params }: Ctx) => {
   const { id } = await params;
   const version = await logVersion();
   const store = new DiveStore();
-  const view = tripView(await new TripStore(store.backend).list(), await store.list(), id);
+  const view = tripView(await new TripStore(store.backend).list(), await store.list(), id, new Date(), langOf(req));
   if (!view) throw new HttpError(404, `No saved trip with id ${id}.`);
   return { version, ...view };
 });

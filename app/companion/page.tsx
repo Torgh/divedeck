@@ -7,18 +7,17 @@ import remarkGfm from "remark-gfm";
 import { api } from "@/components/useLive";
 import { useSettings } from "@/components/useSettings";
 import { Command } from "@/components/Command";
+import type { Key } from "@/lib/i18n";
+import { rich } from "@/lib/i18n/rich";
+import { useT } from "@/lib/i18n/useLang";
 
 type Message = { role: "user" | "assistant"; content: string };
 
-const STARTERS = [
-  "Debrief my latest dive.",
-  "Is my gas consumption improving?",
-  "What should I practise before my next deep dive?",
-  "What is still missing in my dive log?",
-];
+const STARTERS: Key[] = ["companion.starter.debrief", "companion.starter.gas", "companion.starter.practise", "companion.starter.missing"];
 
 export default function CompanionPage() {
   const { settings, error } = useSettings();
+  const t = useT();
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,30 +30,25 @@ export default function CompanionPage() {
   }, [messages.length, busy]);
 
   if (error) return <div className="error">{error}</div>;
-  if (!settings) return <p className="muted">Loading…</p>;
+  if (!settings) return <p className="muted">{t("common.loading")}</p>;
   const provider = settings.providers.find((p) => p.id === settings.provider)!;
 
   if (!provider.usesApi) {
     return (
       <div className="stack">
-        <h1>Companion</h1>
+        <h1>{t("nav.companion")}</h1>
         <div className="card stack">
-          <p>
-            Your companion runs in <strong>{provider.app}</strong> on your {provider.plan}. Ask there, for example:
-          </p>
+          <p>{rich(t("companion.runsIn", { app: provider.app ?? "", plan: provider.plan ?? "" }), { b: (s) => <strong>{s}</strong> })}</p>
           <ul>
             <li>
-              <Command text="/mcp__divedeck__dive-review" />: a debrief of your latest dive, saved here
+              <Command text="/mcp__divedeck__dive-review" />: {t("companion.reviewCmd")}
             </li>
             <li>
-              <Command text="/mcp__divedeck__sort-out" />: go through what your log is still missing
+              <Command text="/mcp__divedeck__sort-out" />: {t("companion.sortOutCmd")}
             </li>
-            <li>“Is my gas consumption improving? What should I practise before my next deco dive?”</li>
+            <li>{t("companion.example")}</li>
           </ul>
-          <p className="muted">
-            Debriefs and the details your companion fills in show up in this app within seconds. To chat here instead, choose an API key in{" "}
-            <Link href="/settings">Settings</Link>.
-          </p>
+          <p className="muted">{rich(t("companion.showUp"), { a: (s) => <Link href="/settings">{s}</Link> })}</p>
         </div>
       </div>
     );
@@ -63,11 +57,8 @@ export default function CompanionPage() {
   if (!provider.key) {
     return (
       <div className="stack">
-        <h1>Companion</h1>
-        <div className="notice">
-          Add your {provider.name} in <Link href="/settings">Settings</Link> to talk to your companion here, or choose your Claude or ChatGPT subscription
-          there to ask in Claude Code or Codex instead.
-        </div>
+        <h1>{t("nav.companion")}</h1>
+        <div className="notice">{rich(t("companion.addKey", { name: provider.name }), { a: (s) => <Link href="/settings">{s}</Link> })}</div>
       </div>
     );
   }
@@ -100,20 +91,20 @@ export default function CompanionPage() {
   return (
     <div className="stack">
       <div className="page-head">
-        <h1>Companion</h1>
+        <h1>{t("nav.companion")}</h1>
         <span className="muted">
-          {provider.name} · <code>{settings.model}</code> · billed per use
+          {provider.name} · <code>{settings.model}</code> · {t("companion.billed")}
         </span>
       </div>
       {messages.length === 0 && (
         <div className="stack" style={{ gap: "0.6rem" }}>
           <p className="secondary" style={{ margin: 0 }}>
-            Ask about your dives. Your companion reads your log through the same tools as in Claude Code, so its answers rest on your numbers.
+            {t("companion.intro")}
           </p>
           <div className="chips">
-            {STARTERS.map((s) => (
-              <button key={s} type="button" className="chip" disabled={busy} onClick={() => send(s)}>
-                {s}
+            {STARTERS.map((key) => (
+              <button key={key} type="button" className="chip" disabled={busy} onClick={() => send(t(key))}>
+                {t(key)}
               </button>
             ))}
           </div>
@@ -131,19 +122,19 @@ export default function CompanionPage() {
             </div>
           ),
         )}
-        {busy && <p className="typing">Your companion is reading your log…</p>}
+        {busy && <p className="typing">{t("companion.reading")}</p>}
         <div ref={end} />
       </div>
       {failure && <div className="error">{failure}</div>}
       <form className="composer" onSubmit={submit}>
         <label className="visually-hidden" htmlFor="ask">
-          Ask your companion
+          {t("companion.ask")}
         </label>
         <textarea
           id="ask"
           rows={2}
           value={draft}
-          placeholder="Ask your companion… (Enter sends, Shift+Enter for a new line)"
+          placeholder={t("companion.placeholder")}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -153,11 +144,11 @@ export default function CompanionPage() {
           }}
         />
         <button className="button primary" type="submit" disabled={busy || !draft.trim()}>
-          Send
+          {t("companion.send")}
         </button>
         {messages.length > 0 && (
           <button className="button" type="button" disabled={busy} onClick={() => setMessages([])}>
-            New
+            {t("companion.new")}
           </button>
         )}
       </form>

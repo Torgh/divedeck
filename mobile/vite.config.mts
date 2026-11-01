@@ -21,9 +21,9 @@ export default defineConfig({
     outDir: here("./dist"),
     emptyOutDir: true,
     target: "es2022",
-    // React, the Markdown renderer and lib/ in one ~520 kB file, read from the phone rather than
-    // downloaded. Warn above that, so a really oversized chunk still stands out.
-    chunkSizeWarningLimit: 700,
+    // React, the Markdown renderer, lib/ and the three languages' texts in one ~760 kB file, read from
+    // the phone rather than downloaded. Warn above that, so a really oversized chunk still stands out.
+    chunkSizeWarningLimit: 900,
   },
   // Reachable from the emulator (10.0.2.2) and phones on the same Wi-Fi for live reload.
   server: { host: true, port: 5173, strictPort: true },

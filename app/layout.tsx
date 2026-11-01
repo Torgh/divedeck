@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { LangAgent } from "@/components/LangAgent";
 import { Nav } from "@/components/Nav";
 import { Offline } from "@/components/Offline";
 import { UnitsProvider } from "@/components/Units";
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        <LangAgent />
         <UnitsProvider>
           <div className="app">
             <Nav />

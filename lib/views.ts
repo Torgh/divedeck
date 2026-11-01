@@ -17,6 +17,7 @@ import {
   type Trend,
 } from "./analysis";
 import { history } from "./coach";
+import type { Lang } from "./i18n";
 import { type Dive, gasLabel } from "./dive";
 import { analyzeRecord, chronological, type DiveDetails, type DiveRecord, effectiveDive, logTodos, type Review, type Todo } from "./record";
 
@@ -88,9 +89,10 @@ function leastSquares(points: { seq: number; value: number }[]): ProgressSeries[
   return [at(points[0].seq), at(points[n - 1].seq)];
 }
 
-export function logView(records: DiveRecord[]): LogView {
+/** The dive log for the app; finding texts in `lang`. */
+export function logView(records: DiveRecord[], lang: Lang = "en"): LogView {
   const log = chronological(records);
-  const analyses = log.map(analyzeRecord);
+  const analyses = log.map((r) => analyzeRecord(r, lang));
   const dives: DiveRow[] = log.map((r, i) => {
     const dive = effectiveDive(r);
     const { metrics: m, findings } = analyses[i];
@@ -113,7 +115,7 @@ export function logView(records: DiveRecord[]): LogView {
     };
   });
   const seqOf = new Map(dives.map((d) => [d.id, d.seq]));
-  const h = history(log);
+  const h = history(log, lang);
   const progress = CHARTED.map((metric): ProgressSeries => {
     const points = dives.flatMap((d, i) => {
       const value = analyses[i].metrics[metric];
@@ -131,7 +133,7 @@ export function logView(records: DiveRecord[]): LogView {
       latestScore: dives.length ? dives[dives.length - 1].score : null,
     },
     todos: logTodos(log).map((t) => ({ ...t, seqs: t.dives.map((id) => seqOf.get(id)!) })),
-    insights: progressInsights(h),
+    insights: progressInsights(h, lang),
     progress,
   };
 }
@@ -173,13 +175,13 @@ export interface DiveView {
 
 const COMPARED: (keyof DiveMetrics)[] = ["maxDepthM", "durationMin", "rmvLMin", "maxAscentRateMMin", "safetyStopS", "endPressureBar", "cnsPercent", "score"];
 
-export function diveView(records: DiveRecord[], id: string): DiveView | null {
+export function diveView(records: DiveRecord[], id: string, lang: Lang = "en"): DiveView | null {
   const log = chronological(records);
   const index = log.findIndex((r) => r.id === id);
   if (index < 0) return null;
   const record = log[index];
   const dive = effectiveDive(record);
-  const { metrics, findings } = analyzeRecord(record);
+  const { metrics, findings } = analyzeRecord(record, lang);
 
   const others = log.filter((r) => r.id !== id).map((r) => analyzeRecord(r).metrics);
   const averages: DiveView["averages"] = {};

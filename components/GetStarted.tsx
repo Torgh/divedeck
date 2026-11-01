@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { rich } from "@/lib/i18n/rich";
+import { useT } from "@/lib/i18n/useLang";
 import { Command } from "./Command";
 import { Icon } from "./Icons";
 import { api } from "./useLive";
@@ -31,6 +33,7 @@ type Storage = { active: "local" | "onedrive" | "google"; location: string };
  */
 export function GetStarted({ dives, onImported }: { dives: number; onImported: () => void }) {
   const { settings } = useSettings();
+  const t = useT();
   const [storage, setStorage] = useState<Storage | null>(null);
   const dismissed = useSyncExternalStore(subscribe, readDismissed, () => true);
   const [busy, setBusy] = useState(false);
@@ -68,9 +71,9 @@ export function GetStarted({ dives, onImported }: { dives: number; onImported: (
     }
   }
 
-  const where = storage ? (storage.active === "google" ? storage.location : storage.active === "onedrive" ? "your OneDrive folder" : "this computer") : "…";
+  const where = storage ? (storage.active === "google" ? storage.location : storage.active === "onedrive" ? t("start.oneDrive") : t("start.thisComputer")) : "…";
   const mark = (done: boolean, n: number) => (
-    <span className={`step-mark ${done ? "done" : ""}`} aria-label={done ? "Done" : `Step ${n}`} role="img">
+    <span className={`step-mark ${done ? "done" : ""}`} aria-label={done ? t("start.done") : t("start.step", { n })} role="img">
       {done ? Icon.check : n}
     </span>
   );
@@ -79,37 +82,33 @@ export function GetStarted({ dives, onImported }: { dives: number; onImported: (
     <section className="card get-started" aria-labelledby="start-h">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h2 id="start-h" style={{ margin: 0 }}>
-          Get started
+          {t("start.title")}
         </h2>
         <button type="button" className="fold-all" onClick={dismiss}>
-          Hide
+          {t("start.hide")}
         </button>
       </div>
       <ol className="steps">
         <li>
           {mark(steps[0], 1)}
           <div>
-            <strong>Where your dives live</strong>
-            <p className="secondary">
-              Now on {where}. This PC, OneDrive or Google Drive: <Link href="/settings">change it in Settings</Link> any time; your dives are copied over.
-            </p>
+            <strong>{t("start.whereTitle")}</strong>
+            <p className="secondary">{rich(t("start.where", { where }), { a: (s) => <Link href="/settings">{s}</Link> })}</p>
           </div>
         </li>
         <li>
           {mark(steps[1], 2)}
           <div>
-            <strong>Your first dives</strong>
+            <strong>{t("start.firstTitle")}</strong>
             {steps[1] ? (
-              <p className="secondary">
-                {dives} dive{dives === 1 ? "" : "s"} in your log.
-              </p>
+              <p className="secondary">{t("start.inLog", { n: dives })}</p>
             ) : (
               <div className="row" style={{ marginTop: "0.4rem" }}>
                 <Link className="button primary" href="/import">
-                  Import UDDF files
+                  {t("start.importUddf")}
                 </Link>
                 <button className="button" type="button" disabled={busy} onClick={samples}>
-                  {busy ? "Loading…" : "Load sample dives"}
+                  {busy ? t("common.loading") : t("start.samples")}
                 </button>
               </div>
             )}
@@ -118,18 +117,14 @@ export function GetStarted({ dives, onImported }: { dives: number; onImported: (
         <li>
           {mark(steps[2], 3)}
           <div>
-            <strong>Your companion</strong>
+            <strong>{t("start.companionTitle")}</strong>
             {connected ? (
-              <p className="secondary">{provider.usesApi ? `${provider.name} is ready on the Companion page.` : `Connected to ${provider.app}.`}</p>
+              <p className="secondary">{provider.usesApi ? t("start.ready", { name: provider.name }) : t("start.connected", { app: provider.app ?? "" })}</p>
             ) : provider.usesApi ? (
-              <p className="secondary">
-                Add your API key in <Link href="/settings">Settings</Link>, or choose your Claude or ChatGPT subscription there.
-              </p>
+              <p className="secondary">{rich(t("start.addKey"), { a: (s) => <Link href="/settings">{s}</Link> })}</p>
             ) : (
               <>
-                <p className="secondary">
-                  Connect DiveDeck to {provider.app} once, in a terminal, then restart it and ask for a debrief:
-                </p>
+                <p className="secondary">{t("start.connect", { app: provider.app ?? "" })}</p>
                 <Command block text={app.commands.join("\n")} />
               </>
             )}

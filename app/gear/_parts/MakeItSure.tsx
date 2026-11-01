@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useState } from "react";
+import { useT } from "@/lib/i18n/useLang";
 import type { GearSet, Kit } from "@/lib/kit";
 import type { WeightingEstimate } from "@/lib/weighting";
 import { Failure, num, useSave } from "@/components/gear/shared";
@@ -23,6 +24,7 @@ export function MakeItSure({
   onSaved: () => void;
 }) {
   const { save, failure } = useSave();
+  const t = useT();
   const [values, setValues] = useState<Record<string, string>>({});
   const unknown = estimate.parts.filter((p) => p.status === "unknown" && p.itemId);
   const d = kit.diver;
@@ -30,11 +32,11 @@ export function MakeItSure({
   if (!hasTank)
     steps.push({
       key: "tank",
-      title: "Add the tank you dive with",
-      why: "Steel sinks, aluminium floats when empty: the biggest unknown left. Rented ones too: material and volume are enough.",
+      title: t("sure.tankTitle"),
+      why: t("sure.tankWhy"),
       action: (
         <button className="button primary" type="button" onClick={onAddTank}>
-          Add a tank
+          {t("sure.addTank")}
         </button>
       ),
     });
@@ -42,8 +44,8 @@ export function MakeItSure({
     const id = p.itemId!;
     steps.push({
       key: id,
-      title: `${p.label}: its buoyancy`,
-      why: "Hang it from a luggage scale in the pool: what it pulls down is negative; or push it under and see how much it floats.",
+      title: t("sure.buoyancyTitle", { name: p.label }),
+      why: t("sure.buoyancyWhy"),
       action: (
         <form
           className="row"
@@ -55,11 +57,11 @@ export function MakeItSure({
           }}
         >
           <label className="row" style={{ gap: "0.4rem", fontSize: "0.9rem" }}>
-            <span className="secondary">kg, + floats</span>
-            <input className="small-input" value={values[id] ?? ""} onChange={(e) => setValues({ ...values, [id]: e.target.value })} inputMode="decimal" placeholder="e.g. +0.8" />
+            <span className="secondary">{t("sure.kgFloats")}</span>
+            <input className="small-input" value={values[id] ?? ""} onChange={(e) => setValues({ ...values, [id]: e.target.value })} inputMode="decimal" placeholder={t("gear.eg", { value: "+0.8" })} />
           </label>
           <button className="button" type="submit">
-            Save
+            {t("common.save")}
           </button>
         </form>
       ),
@@ -68,33 +70,33 @@ export function MakeItSure({
   if (d.heightCm === undefined || d.bodyFatPercent === undefined)
     steps.push({
       key: "you",
-      title: `Add your ${[d.heightCm === undefined ? "height" : null, d.bodyFatPercent === undefined ? "body fat" : null].filter(Boolean).join(" and ")}`,
-      why: "Body fat moves the estimate by about 1 kg per 5 %; height gives your suit's area and your lungs.",
+      title: d.heightCm === undefined && d.bodyFatPercent === undefined ? t("sure.addBoth") : d.heightCm === undefined ? t("sure.addHeight") : t("sure.addFat"),
+      why: t("sure.youWhy"),
       action: (
         <button className="button" type="button" onClick={onEditYou}>
-          Edit you
+          {t("sure.editYou")}
         </button>
       ),
     });
   if (!estimate.calibration || estimate.calibration.dives < 3)
     steps.push({
       key: "dives",
-      title: "Log the lead on your next dives",
-      why: `On each dive with ${set.name}: the lead you carried and whether it felt too light, right or too heavy. Three dives correct the estimate to you.`,
+      title: t("sure.logTitle"),
+      why: t("sure.logWhy", { set: set.name }),
       action: (
         <Link className="button" href="/dives">
-          Open the dive log
+          {t("sure.openLog")}
         </Link>
       ),
     });
   if (!steps.length) return null;
   return (
     <section className="card" aria-labelledby="sure-h">
-      <h2 id="sure-h">Make it sure</h2>
+      <h2 id="sure-h">{t("sure.title")}</h2>
       <ol className="steps">
         {steps.map((s, i) => (
           <li key={s.key}>
-            <span className="step-mark" role="img" aria-label={`Step ${i + 1}`}>
+            <span className="step-mark" role="img" aria-label={t("start.step", { n: i + 1 })}>
               {i + 1}
             </span>
             <div className="row" style={{ justifyContent: "space-between", flex: 1 }}>

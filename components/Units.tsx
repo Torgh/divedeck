@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { formatNumber } from "@/lib/format";
+import { useLang } from "@/lib/i18n/useLang";
 import { convert, digitsFor, formatRange, type Quantity, type UnitSystem, unitOf } from "@/lib/measure";
 import { api } from "./useLive";
 
@@ -24,6 +25,7 @@ const Context = createContext<UnitsContext | null>(null);
 export function UnitsProvider({ children, fixed }: { children: React.ReactNode; fixed?: UnitSystem }) {
   const [saved, setLocal] = useState<UnitSystem>("metric");
   const system = fixed ?? saved;
+  const lang = useLang();
 
   useEffect(() => {
     if (fixed) return;
@@ -43,12 +45,12 @@ export function UnitsProvider({ children, fixed }: { children: React.ReactNode; 
       system,
       setSystem,
       show: (quantity, metric, metricDigits) =>
-        metric === null || metric === undefined ? "–" : formatNumber(convert(quantity, metric, system), digitsFor(quantity, system, metricDigits), unitOf(quantity, system)),
-      range: (quantity, min, max) => formatRange(quantity, min, max, system, (v, digits) => formatNumber(v, digits)),
+        metric === null || metric === undefined ? "–" : formatNumber(convert(quantity, metric, system), digitsFor(quantity, system, metricDigits), unitOf(quantity, system), lang),
+      range: (quantity, min, max) => formatRange(quantity, min, max, system, (v, digits) => formatNumber(v, digits, "", lang)),
       value: (quantity, metric) => convert(quantity, metric, system),
       unit: (quantity) => unitOf(quantity, system),
     }),
-    [system, setSystem],
+    [system, setSystem, lang],
   );
   return <Context.Provider value={context}>{children}</Context.Provider>;
 }

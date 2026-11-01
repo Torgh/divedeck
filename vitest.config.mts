@@ -14,7 +14,8 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["lib/**/*.ts", "app/api/**/*.ts", "proxy.ts"],
-      exclude: ["**/*.test.ts"],
+      // The language hook needs a browser (localStorage, navigator); the pages exercise it.
+      exclude: ["**/*.test.ts", "lib/i18n/useLang.ts"],
       reporter: ["text-summary", "text", "json-summary"],
       // Raised as the port grows; CI fails when a change drops coverage below these.
       thresholds: { statements: 95, branches: 90, functions: 95, lines: 97 },

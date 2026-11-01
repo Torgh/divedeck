@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { PROGRESS_METRICS, type ProgressMetric, trend } from "./analysis";
 import { gasLabel } from "./dive";
+import type { Lang } from "./i18n";
 import { pyRound } from "./py";
 import { type PlannedDive, prepareDive } from "./prep";
 import { analyzeRecord, chronological, type DiveRecord, effectiveDive, logTodos } from "./record";
@@ -220,9 +221,9 @@ export function resolveDive(records: DiveRecord[], ref: string | number): { reco
 }
 
 /** The log entries the trends and progress insights are computed from. */
-export function history(records: DiveRecord[]) {
+export function history(records: DiveRecord[], lang: Lang = "en") {
   return chronological(records).map((r) => {
-    const { metrics, findings } = analyzeRecord(r);
+    const { metrics, findings } = analyzeRecord(r, lang);
     return { ...metrics, findingTitles: findings.map((f) => f.title) };
   });
 }

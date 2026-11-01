@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { rich } from "@/lib/i18n/rich";
+import { useT } from "@/lib/i18n/useLang";
 import { api } from "./useLive";
 import { Command } from "./Command";
 
@@ -10,12 +12,13 @@ interface StorageView {
   location: string;
   local: { folder: string };
   onedrive: { folder: string | null; configuredFolder: string | null };
-  google: { clientConfigured: boolean; clientId: string | null; account: string | null };
+  google: { clientConfigured: boolean; clientId: string | null; account: string | null; expired?: boolean };
   copied?: number;
 }
 
 /** Where the dive log is stored: this PC, the OneDrive folder, or Google Drive. */
 export function StorageSettings() {
+  const t = useT();
   const [view, setView] = useState<StorageView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,13 +34,15 @@ export function StorageSettings() {
         setView(v);
         // Back from the Google sign-in.
         const params = new URLSearchParams(window.location.search);
-        if (params.get("google") === "connected") setMessage(`Google Drive connected. Copied ${params.get("copied") ?? 0} dives there.`);
-        if (params.get("google") === "error") setMessage(`⛔ ${params.get("message") ?? "Google sign-in failed."}`);
+        if (params.get("google") === "connected") setMessage(t("storage.googleConnected", { n: Number(params.get("copied") ?? 0) }));
+        if (params.get("google") === "error") setMessage(`⛔ ${params.get("message") ?? t("storage.googleFailed")}`);
       })
       .catch((err: Error) => alive && setMessage(`⛔ ${err.message}`));
     return () => {
       alive = false;
     };
+    // Read once, when the page opens: a language change doesn't repeat the message.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function post(body: object, done: (v: StorageView) => string) {
@@ -55,22 +60,18 @@ export function StorageSettings() {
   }
 
   if (!view) return null;
-  const copied = (v: StorageView) => (v.copied ? ` Copied ${v.copied} dives there; the old place keeps its copy.` : "");
-  const choose = (storage: StorageView["active"]) =>
-    post({ storage }, (v) => `Your dives are now stored in ${v.location}.${copied(v)}`);
+  const copied = (v: StorageView) => (v.copied ? ` ${t("storage.copied", { n: v.copied })}` : "");
+  const choose = (storage: StorageView["active"]) => post({ storage }, (v) => `${t("storage.nowIn", { location: v.location })}${copied(v)}`);
 
   return (
     <div className="card stack" id="storage">
-      <h2>Where your dives are stored</h2>
-      <p className="secondary">
-        Now: <code>{view.location}</code>. Each dive is one file, next to the original UDDF file it came from. Switching copies your dives to the new
-        place; the dive with the newer changes wins.
-      </p>
+      <h2>{t("storage.title")}</h2>
+      <p className="secondary">{rich(t("storage.intro", { location: view.location }), { code: (s) => <code>{s}</code> })}</p>
 
       <label className="row" style={{ gap: "0.5rem" }}>
         <input type="radio" name="storage" checked={view.active === "local"} disabled={busy} onChange={() => choose("local")} />
         <span>
-          This PC <span className="muted">· {view.local.folder}</span>
+          {t("storage.thisPc")} <span className="muted">· {view.local.folder}</span>
         </span>
       </label>
 
@@ -80,7 +81,7 @@ export function StorageSettings() {
           <span>
             OneDrive{" "}
             <span className="muted">
-              · {view.onedrive.folder ? `${view.onedrive.folder}, synced by the OneDrive app, no sign-in needed` : "OneDrive wasn't found on this PC"}
+              · {view.onedrive.folder ? t("storage.oneDriveFound", { folder: view.onedrive.folder }) : t("storage.oneDriveMissing")}
             </span>
           </span>
         </label>
@@ -90,10 +91,10 @@ export function StorageSettings() {
             style={{ minWidth: "18rem", cursor: "text" }}
             value={folder}
             onChange={(e) => setFolder(e.target.value)}
-            placeholder={view.onedrive.configuredFolder ?? "Your OneDrive folder, if it isn't found"}
+            placeholder={view.onedrive.configuredFolder ?? t("storage.oneDrivePlaceholder")}
           />
-          <button className="button" disabled={busy || !folder.trim()} onClick={() => post({ oneDriveFolder: folder }, (v) => (v.onedrive.folder ? "OneDrive folder saved." : "⛔ That folder doesn't exist."))}>
-            Save folder
+          <button className="button" disabled={busy || !folder.trim()} onClick={() => post({ oneDriveFolder: folder }, (v) => (v.onedrive.folder ? t("storage.folderSaved") : `⛔ ${t("storage.noFolder")}`))}>
+            {t("storage.saveFolder")}
           </button>
         </div>
       </div>
@@ -104,49 +105,57 @@ export function StorageSettings() {
           <span>
             Google Drive{" "}
             <span className="muted">
-              · {view.google.account !== null ? `My Drive › DiveDeck${view.google.account ? `, ${view.google.account}` : ""}` : "not connected"}
+              · {view.google.account !== null ? `${t("storage.myDrive")}${view.google.account ? `, ${view.google.account}` : ""}` : t("storage.notConnected")}
             </span>
           </span>
         </label>
         <div className="stack" style={{ paddingLeft: "1.6rem", gap: "0.4rem" }}>
+          {view.google.account !== null && view.google.expired && (
+            <p role="alert" style={{ margin: 0, color: "var(--critical)" }}>
+              ⚠️ {t("storage.expired")}
+            </p>
+          )}
           {view.google.account !== null ? (
-            <button
-              className="button"
-              style={{ alignSelf: "start" }}
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  const r = await api<{ copied: number }>("/api/auth/google/disconnect", "POST");
-                  setMessage(`Google Drive disconnected.${r.copied ? ` Copied ${r.copied} dives to this PC first.` : ""}`);
-                  setView(await (await fetch("/api/storage", { cache: "no-store" })).json());
-                } catch (err) {
-                  setMessage(`⛔ ${(err as Error).message}`);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Disconnect Google Drive
-            </button>
+            <div className="row" style={{ gap: "0.5rem" }}>
+              {/* Signing in again replaces the saved access; the dives stay where they are. */}
+              <a className={`button ${view.google.expired ? "primary" : ""}`} style={{ textDecoration: "none" }} href="/api/auth/google/start">
+                {t("storage.reconnect")}
+              </a>
+              <button
+                className="button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    const r = await api<{ copied: number }>("/api/auth/google/disconnect", "POST");
+                    setMessage(`${t("storage.disconnected")}${r.copied ? ` ${t("storage.copiedBack", { n: r.copied })}` : ""}`);
+                    setView(await (await fetch("/api/storage", { cache: "no-store" })).json());
+                  } catch (err) {
+                    setMessage(`⛔ ${(err as Error).message}`);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {t("storage.disconnect")}
+              </button>
+            </div>
           ) : view.google.clientConfigured ? (
             <a className="button primary" style={{ alignSelf: "start", textDecoration: "none" }} href="/api/auth/google/start">
-              Connect Google Drive
+              {t("storage.connect")}
             </a>
           ) : (
             <>
               <p className="muted" style={{ margin: 0 }}>
-                Google needs your own OAuth client, once: in Google Cloud enable the Google Drive API, set the audience to External and publish the app,
-                then create an OAuth client of type Web application with the redirect URI <Command text="http://localhost:3001/api/auth/google/callback" />. The
-                app only asks for the files it creates.
+                {rich(t("storage.oauthHelp"), { uri: () => <Command text="http://localhost:3001/api/auth/google/callback" /> })}
               </p>
               <div className="form">
                 <label>
-                  Client ID
+                  {t("storage.clientId")}
                   <input value={client.id} onChange={(e) => setClient({ ...client, id: e.target.value })} />
                 </label>
                 <label>
-                  Client secret
+                  {t("storage.clientSecret")}
                   <input type="password" autoComplete="off" value={client.secret} onChange={(e) => setClient({ ...client, secret: e.target.value })} />
                 </label>
               </div>
@@ -154,9 +163,9 @@ export function StorageSettings() {
                 className="button"
                 style={{ alignSelf: "start" }}
                 disabled={busy || !client.id.trim() || !client.secret.trim()}
-                onClick={() => post({ googleClientId: client.id, googleClientSecret: client.secret }, () => "Google OAuth client saved. Now connect Google Drive.")}
+                onClick={() => post({ googleClientId: client.id, googleClientSecret: client.secret }, () => t("storage.clientSaved"))}
               >
-                Save OAuth client
+                {t("storage.saveClient")}
               </button>
             </>
           )}

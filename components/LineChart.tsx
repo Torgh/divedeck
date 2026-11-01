@@ -1,6 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, type PointerEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useT } from "@/lib/i18n/useLang";
 
 export interface Series {
   key: string;
@@ -76,6 +77,7 @@ export function nearestIndex(x: number[], value: number): number {
 }
 
 export function LineChart(props: ChartProps) {
+  const t = useT();
   const { title, x, series, formatX, formatY, xUnit, height = 200, invertY, includeY = [], refLines = [], bands = [], markers = [] } = props;
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
@@ -181,7 +183,7 @@ export function LineChart(props: ChartProps) {
         width={width}
         height={height}
         role="img"
-        aria-label={`${title}. Use the arrow keys to read values; the table below lists them.`}
+        aria-label={t("chart.aria", { title })}
         aria-describedby={tableId}
         tabIndex={0}
         onPointerMove={(e: PointerEvent) => pick(e.clientX)}
@@ -282,7 +284,7 @@ export function LineChart(props: ChartProps) {
         </div>
       )}
       <details className="table-view" id={tableId}>
-        <summary>Table: {title}</summary>
+        <summary>{t("chart.table", { title })}</summary>
         <div className="table-scroll">
           <table className="log">
             <thead>

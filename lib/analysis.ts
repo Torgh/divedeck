@@ -7,6 +7,7 @@
  */
 
 import { type Dive, type GasMix, gasLabel } from "./dive";
+import { type Key, LOCALE, type Lang, type Messages, type Params, translate } from "./i18n";
 import { formatFixed, pyFloat, pyMax, pyMean, pyMin, pyRound, pySignedFloat, pySum } from "./py";
 
 export const SURFACE_BAR = 1.013;
@@ -128,7 +129,7 @@ export function ascentRateSeries(dive: Dive): [number, number, number][] {
 
 const roundOrNull = (x: number | null, n = 0) => (x === null ? null : pyRound(x, n));
 
-export function analyzeDive(dive: Dive): DiveAnalysis {
+export function analyzeDive(dive: Dive, lang: Lang = "en"): DiveAnalysis {
   const s = dive.samples;
   const times = s.map((x) => x.timeS);
   const depths = s.map((x) => x.depthM);
@@ -250,7 +251,7 @@ export function analyzeDive(dive: Dive): DiveAnalysis {
     alarms,
     score: 100,
   };
-  const findings = diveFindings(metrics);
+  const findings = diveFindings(metrics, lang);
   metrics.score = score(findings);
   return { metrics, findings };
 }
@@ -276,151 +277,68 @@ export function countSawtooth(depths: number[]): number {
   return count;
 }
 
-// Python prints a float as `14.0` and an int as `14`; these mark which is which in the texts.
-const f = pyFloat;
-const fixed0 = (x: number) => formatFixed(x, 0);
+/** Python's number printing in English (`14.0`, so both versions read the same); the language's own otherwise. */
+const numbers = (lang: Lang) =>
+  lang === "en"
+    ? { f: pyFloat, fixed0: (x: number) => formatFixed(x, 0) }
+    : { f: (x: number) => x.toLocaleString(LOCALE[lang], { maximumFractionDigits: 2 }), fixed0: (x: number) => x.toLocaleString(LOCALE[lang], { maximumFractionDigits: 0 }) };
 
-function diveFindings(m: DiveMetrics): Finding[] {
+type FindingKey = keyof Messages["finding"];
+
+function diveFindings(m: DiveMetrics, lang: Lang): Finding[] {
   const out: Finding[] = [];
-  const add = (severity: Severity, title: string, detail: string) => out.push({ severity, title, detail });
+  const { f, fixed0 } = numbers(lang);
+  const add = (severity: Severity, key: FindingKey, params: Params = {}) =>
+    out.push({ severity, title: translate(lang, `finding.${key}.title`), detail: translate(lang, `finding.${key}.detail`, params) });
 
   if (m.maxAscentRateMMin > ASCENT_CRIT_M_MIN) {
-    add(
-      "critical",
-      "Very fast ascent",
-      `Peak ascent rate ${f(m.maxAscentRateMMin)} m/min (limit ~${fixed0(ASCENT_WARN_M_MIN)} m/min). ` +
-        "Rapid ascents sharply raise DCS and lung over-expansion risk. Practise buoyancy control with " +
-        "a slow, controlled exhale-and-dump technique.",
-    );
+    add("critical", "veryFastAscent", { rate: f(m.maxAscentRateMMin), limit: fixed0(ASCENT_WARN_M_MIN) });
   } else if (m.fastAscentSeconds > 20) {
-    add(
-      "warning",
-      "Ascent faster than recommended",
-      `${m.fastAscentSeconds}s spent ascending faster than ${fixed0(ASCENT_WARN_M_MIN)} m/min ` +
-        `(peak ${f(m.maxAscentRateMMin)} m/min). Aim for 9-10 m/min, and slower in the last 6 m.`,
-    );
+    add("warning", "fastAscent", { s: m.fastAscentSeconds, limit: fixed0(ASCENT_WARN_M_MIN), rate: f(m.maxAscentRateMMin) });
   } else if (m.maxDepthM > 3) {
-    add("good", "Controlled ascent", `Ascent rate stayed within limits (peak ${f(m.maxAscentRateMMin)} m/min).`);
+    add("good", "controlledAscent", { rate: f(m.maxAscentRateMMin) });
   }
 
   if (m.ceilingViolationS > 0) {
-    add(
-      "critical",
-      "Deco ceiling violated",
-      `You were shallower than the required decompression stop for about ${m.ceilingViolationS}s. ` +
-        "Review your ascent plan and buoyancy at stops.",
-    );
+    add("critical", "ceilingViolated", { s: m.ceilingViolationS });
   } else if (m.hadDeco) {
-    add("good", "Decompression completed", "All required deco stops were respected.");
+    add("good", "decoCompleted");
   }
 
   if (!m.hadDeco && m.maxDepthM >= 10) {
-    if (m.safetyStopS >= SAFETY_STOP_S) {
-      add("good", "Safety stop done", `${Math.floor(m.safetyStopS / 60)} min ${m.safetyStopS % 60}s between 3-6 m.`);
-    } else {
-      add(
-        "warning",
-        "Short or missing safety stop",
-        `Only ${m.safetyStopS}s between 3-6 m on the way up. A 3-minute stop at ~5 m is strongly recommended.`,
-      );
-    }
+    if (m.safetyStopS >= SAFETY_STOP_S) add("good", "safetyStopDone", { min: Math.floor(m.safetyStopS / 60), s: m.safetyStopS % 60 });
+    else add("warning", "safetyStopShort", { s: m.safetyStopS });
   }
 
   if (m.maxPpo2 !== null) {
     const limit = m.hadDeco ? PPO2_DECO_LIMIT : PPO2_WORK_LIMIT;
-    if (m.maxPpo2 > PPO2_DECO_LIMIT) {
-      add(
-        "critical",
-        "ppO2 above 1.6 bar",
-        `Max ppO2 ${f(m.maxPpo2)} bar - CNS oxygen toxicity risk. Check MOD of every gas before switching.`,
-      );
-    } else if (m.maxPpo2 > limit) {
-      add(
-        "warning",
-        "High ppO2 during working phase",
-        `Max ppO2 ${f(m.maxPpo2)} bar exceeds ${f(PPO2_WORK_LIMIT)} bar recommended for the bottom phase.`,
-      );
-    }
+    if (m.maxPpo2 > PPO2_DECO_LIMIT) add("critical", "ppo2Above16", { ppo2: f(m.maxPpo2) });
+    else if (m.maxPpo2 > limit) add("warning", "ppo2High", { ppo2: f(m.maxPpo2), limit: f(PPO2_WORK_LIMIT) });
   }
-  if (m.minPpo2 !== null && m.minPpo2 < PPO2_HYPOXIC) {
-    add(
-      "critical",
-      "Hypoxic gas breathed",
-      `ppO2 dropped to ${f(m.minPpo2)} bar. Never breathe a hypoxic mix shallower than its minimum operating depth.`,
-    );
-  }
+  if (m.minPpo2 !== null && m.minPpo2 < PPO2_HYPOXIC) add("critical", "hypoxic", { ppo2: f(m.minPpo2) });
 
-  if (m.cnsPercent >= 80) {
-    add(
-      "critical",
-      "CNS oxygen loading very high",
-      `CNS ~${f(m.cnsPercent)}%. Keep below 80%; plan longer surface intervals.`,
-    );
-  } else if (m.cnsPercent >= 50) {
-    add(
-      "warning",
-      "Elevated CNS oxygen loading",
-      `CNS ~${f(m.cnsPercent)}%. Monitor cumulative exposure on repetitive days.`,
-    );
-  }
+  if (m.cnsPercent >= 80) add("critical", "cnsVeryHigh", { cns: f(m.cnsPercent) });
+  else if (m.cnsPercent >= 50) add("warning", "cnsElevated", { cns: f(m.cnsPercent) });
 
-  if (m.maxEndM !== null && m.maxEndM > END_LIMIT_M) {
-    add(
-      "warning",
-      "High narcotic depth (END)",
-      `Equivalent narcotic depth reached ${f(m.maxEndM)} m. Consider more helium for this depth.`,
-    );
-  }
+  if (m.maxEndM !== null && m.maxEndM > END_LIMIT_M) add("warning", "endHigh", { end: f(m.maxEndM) });
 
   if (m.endPressureBar !== null) {
-    if (m.endPressureBar < RESERVE_CRIT_BAR) {
-      add(
-        "critical",
-        "Surfaced with almost empty tank",
-        `Lowest tank ended at ${m.endPressureBar} bar. Plan rock-bottom gas and turn pressures before the dive.`,
-      );
-    } else if (m.endPressureBar < RESERVE_WARN_BAR) {
-      add(
-        "warning",
-        "Low gas reserve",
-        `Lowest tank ended at ${m.endPressureBar} bar. Aim to surface with at least ${fixed0(RESERVE_WARN_BAR)} bar.`,
-      );
-    }
+    if (m.endPressureBar < RESERVE_CRIT_BAR) add("critical", "tankEmpty", { bar: m.endPressureBar });
+    else if (m.endPressureBar < RESERVE_WARN_BAR) add("warning", "reserveLow", { bar: m.endPressureBar, reserve: fixed0(RESERVE_WARN_BAR) });
   }
 
   if (m.rmvLMin !== null) {
-    if (m.rmvLMin > 25) {
-      add(
-        "warning",
-        "High gas consumption",
-        `RMV ${f(m.rmvLMin)} L/min. Work on relaxed breathing, trim and finning efficiency; check for leaks.`,
-      );
-    } else if (m.rmvLMin < 15) {
-      add("good", "Efficient breathing", `RMV ${f(m.rmvLMin)} L/min is very economical.`);
-    }
+    if (m.rmvLMin > 25) add("warning", "rmvHigh", { rmv: f(m.rmvLMin) });
+    else if (m.rmvLMin < 15) add("good", "rmvLow", { rmv: f(m.rmvLMin) });
   }
 
-  if (m.minNdlMin !== null && !m.hadDeco && m.minNdlMin < 3) {
-    add("warning", "Close to no-deco limit", `NDL dropped to ${f(m.minNdlMin)} min.`);
-  }
+  if (m.minNdlMin !== null && !m.hadDeco && m.minNdlMin < 3) add("warning", "nearNdl", { ndl: f(m.minNdlMin) });
 
-  if (m.sawtoothCount >= 3) {
-    add(
-      "warning",
-      "Sawtooth profile",
-      `${m.sawtoothCount} repeated ascents/descents of 4 m or more. Yo-yo profiles increase DCS risk.`,
-    );
-  }
+  if (m.sawtoothCount >= 3) add("warning", "sawtooth", { n: m.sawtoothCount });
 
-  if (m.maxDescentRateMMin > 30) {
-    add(
-      "info",
-      "Fast descent",
-      `Peak descent rate ${f(m.maxDescentRateMMin)} m/min. Equalise early and keep the descent controlled.`,
-    );
-  }
+  if (m.maxDescentRateMMin > 30) add("info", "fastDescent", { rate: f(m.maxDescentRateMMin) });
 
-  for (const alarm of m.alarms) add("warning", "Dive computer alarm", `Your computer logged the alarm: ${alarm}.`);
+  for (const alarm of m.alarms) add("warning", "alarm", { alarm });
 
   return out.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }
@@ -523,38 +441,44 @@ function trendWithAverages(
   };
 }
 
-const GOOD_TITLES = new Set(["Controlled ascent", "Safety stop done", "Efficient breathing", "Decompression completed"]);
+const GOOD_FINDINGS: FindingKey[] = ["controlledAscent", "safetyStopDone", "rmvLow", "decoCompleted"];
 
 /** Plain-language progress notes from the whole dive log, in chronological order. */
-export function progressInsights(history: HistoryEntry[]): Finding[] {
+export function progressInsights(history: HistoryEntry[], lang: Lang = "en"): Finding[] {
+  const t = (key: Key, params?: Params) => translate(lang, key, params);
   const out: Finding[] = [];
-  if (history.length < 3) {
-    return [{ severity: "info", title: "Not enough history yet", detail: "Import at least 3 dives to unlock progress tracking." }];
-  }
+  if (history.length < 3) return [{ severity: "info", title: t("progress.notEnough.title"), detail: t("progress.notEnough.detail") }];
   for (const metric of ["rmvLMin", "maxAscentRateMMin", "fastAscentSeconds", "score", "safetyStopS"] as const) {
     const found = trendWithAverages(history, metric);
     if (!found || found.trend.verdict === "stable") continue;
-    const t = found.trend;
+    const t2 = found.trend;
+    const english = lang === "en";
     out.push({
-      severity: t.verdict === "improving" ? "good" : "warning",
-      title: `${t.label}: ${t.verdict}`,
-      detail:
-        `Average went from ${found.early} to ${found.recent} ` +
-        `(${pySignedFloat(t.changePct)}%) across ${t.dives} logged dives.`,
+      severity: t2.verdict === "improving" ? "good" : "warning",
+      title: t(`progress.${t2.verdict as "improving" | "worsening"}`, { metric: english ? t2.label : t(`progress.metric.${metric}`) }),
+      detail: t("progress.trendDetail", {
+        early: english ? found.early : formatLocal(t2.earlyAvg, lang),
+        recent: english ? found.recent : formatLocal(t2.recentAvg, lang),
+        change: english ? pySignedFloat(t2.changePct) : `${t2.changePct > 0 ? "+" : ""}${formatLocal(t2.changePct, lang)}`,
+        n: t2.dives,
+      }),
     });
   }
   const window = history.slice(-6);
+  const good = new Set(GOOD_FINDINGS.map((key) => t(`finding.${key}.title`)));
   const recurring = new Map<string, number>();
   for (const h of window) for (const title of h.findingTitles ?? []) recurring.set(title, (recurring.get(title) ?? 0) + 1);
   for (const [title, count] of [...recurring].sort((a, b) => b[1] - a[1])) {
-    if (count >= 3 && !GOOD_TITLES.has(title)) {
+    if (count >= 3 && !good.has(title)) {
       out.push({
         severity: "warning",
-        title: `Recurring issue: ${title}`,
-        detail: `Appeared in ${count} of your last ${window.length} dives. Make it a focus for your next dives.`,
+        title: t("progress.recurring.title", { title }),
+        detail: t("progress.recurring.detail", { count, n: window.length }),
       });
     }
   }
-  if (!out.length) out.push({ severity: "info", title: "Consistent performance", detail: "Your key metrics are stable across your logged dives." });
+  if (!out.length) out.push({ severity: "info", title: t("progress.consistent.title"), detail: t("progress.consistent.detail") });
   return out;
 }
+
+const formatLocal = (x: number, lang: Lang) => x.toLocaleString(LOCALE[lang], { maximumFractionDigits: 2 });

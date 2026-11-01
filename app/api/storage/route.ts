@@ -1,12 +1,23 @@
 import { z } from "zod";
 import { activeStorage, backendFor, oneDriveFolder } from "@/lib/server/backends";
-import { googleAccount, oauthClient } from "@/lib/server/cloudAuth";
+import { accessToken, googleAccount, oauthClient } from "@/lib/server/cloudAuth";
 import { readSettings, updateSettings } from "@/lib/server/config";
 import { assertLocal, handle, HttpError, readBody } from "@/lib/server/http";
 import { dataDir } from "@/lib/server/paths";
 import { switchStorage } from "@/lib/server/storage";
 
-function storageView() {
+/** Whether Google turned the saved sign-in down (expired or revoked): the page then offers to reconnect. */
+async function googleExpired(): Promise<boolean> {
+  if (!googleAccount()) return false;
+  try {
+    await accessToken();
+    return false;
+  } catch (err) {
+    return err instanceof HttpError && err.status === 401;
+  }
+}
+
+async function storageView() {
   const settings = readSettings();
   const active = activeStorage();
   return {
@@ -19,13 +30,14 @@ function storageView() {
       clientConfigured: !!oauthClient(),
       clientId: oauthClient()?.id ?? null,
       account: googleAccount()?.email ?? (googleAccount() ? "" : null),
+      expired: await googleExpired(),
     },
   };
 }
 
 export const GET = handle(async (req) => {
   assertLocal(req);
-  return storageView();
+  return await storageView();
 });
 
 const change = z.object({
@@ -49,5 +61,5 @@ export const POST = handle(async (req) => {
     if (storage === "google" && !googleAccount()) throw new HttpError(400, "Connect Google Drive first.");
     copied = await switchStorage(storage);
   }
-  return { ...storageView(), copied };
+  return { ...(await storageView()), copied };
 });

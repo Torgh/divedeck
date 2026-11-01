@@ -12,6 +12,7 @@ import { TripSites } from "@/components/TripSites";
 import { TripTodos } from "@/components/TripTodos";
 import { api, useLive } from "@/components/useLive";
 import { formatDate } from "@/lib/format";
+import { useLang, useT } from "@/lib/i18n/useLang";
 import type { TripView } from "@/lib/tripViews";
 
 type Data = TripView & { version: string };
@@ -24,11 +25,13 @@ export default function TripPage() {
   const router = useRouter();
   const { data, error, loading, reload } = useLive<Data>(`/api/trips/${id}`);
   const [failure, setFailure] = useState<string | null>(null);
+  const t = useT();
+  const lang = useLang();
   if (error && !data) return <div className="error">{error}</div>;
-  if (!data) return <p className="muted">Loading the trip…</p>;
+  if (!data) return <p className="muted">{t("trip.loading")}</p>;
 
   async function forget() {
-    if (!window.confirm(`Forget "${data!.name}" here, with its preparation? The trip stays in TripDeck.`)) return;
+    if (!window.confirm(t("trip.confirmForget", { name: data!.name }))) return;
     try {
       await api(`/api/trips/${id}`, "DELETE");
       router.push("/trips");
@@ -43,32 +46,32 @@ export default function TripPage() {
       <div className="dive-head">
         <div>
           <Link className="back" href="/trips">
-            ‹ Trips
+            ‹ {t("nav.trips")}
           </Link>
           <h1>{data.name}</h1>
-          <div className="secondary">{tripLine(data)}</div>
+          <div className="secondary">{tripLine(data, t, lang)}</div>
         </div>
         <div className="row">
           <a className="button" href={`${TRIPDECK_URL}/trip?id=${encodeURIComponent(data.id)}`}>
             {Icon.external}
-            <span style={{ marginLeft: "0.4rem" }}>Open in TripDeck</span>
+            <span style={{ marginLeft: "0.4rem" }}>{t("trip.openTripDeck")}</span>
           </a>
           <button className="button" onClick={forget}>
-            Forget here
+            {t("trip.forget")}
           </button>
         </div>
       </div>
       {failure && <div className="error">{failure}</div>}
 
-      <TripTodos todos={data.todos} cards={data.dives.map((d) => ({ itemId: d.itemId, title: d.date ? `${d.title} (${formatDate(d.date, false)})` : d.title }))} edit={edit} />
+      <TripTodos todos={data.todos} cards={data.dives.map((d) => ({ itemId: d.itemId, title: d.date ? `${d.title} (${formatDate(d.date, false, lang)})` : d.title }))} edit={edit} />
 
       <BeforeYouGo data={data} edit />
 
       <RecurringIssues data={data} />
 
       <section className="card review" aria-labelledby="notes-h">
-        <h2 id="notes-h">Trip notes</h2>
-        {data.summary ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.summary.markdown}</ReactMarkdown> : <p className="muted">No notes for the whole trip yet.</p>}
+        <h2 id="notes-h">{t("trip.notes")}</h2>
+        {data.summary ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.summary.markdown}</ReactMarkdown> : <p className="muted">{t("trip.noNotes")}</p>}
         <TripPrepHint trip={data.name} />
       </section>
 

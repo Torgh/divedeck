@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { useUnits } from "@/components/Units";
+import { useT } from "@/lib/i18n/useLang";
 import type { Kit, Water } from "@/lib/kit";
 import type { Part } from "@/lib/weighting";
 import { BuoyancyPill, Failure, num, str, useSave } from "./shared";
@@ -7,6 +8,7 @@ import { BuoyancyPill, Failure, num, str, useSave } from "./shared";
 function DiverForm({ kit, onDone }: { kit: Kit; onDone: () => void }) {
   const [form, setForm] = useState({ massKg: str(kit.diver.massKg), heightCm: str(kit.diver.heightCm), bodyFatPercent: str(kit.diver.bodyFatPercent) });
   const { save, busy, failure } = useSave();
+  const t = useT();
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value });
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -15,23 +17,23 @@ function DiverForm({ kit, onDone }: { kit: Kit; onDone: () => void }) {
   return (
     <form className="form" onSubmit={submit} style={{ flexBasis: "100%" }}>
       <label>
-        Body mass (kg)
-        <input value={form.massKg} onChange={set("massKg")} inputMode="decimal" placeholder="e.g. 82" />
+        {t("gear.you.mass")}
+        <input value={form.massKg} onChange={set("massKg")} inputMode="decimal" placeholder={t("gear.eg", { value: 82 })} />
       </label>
       <label>
-        Height (cm)
-        <input value={form.heightCm} onChange={set("heightCm")} inputMode="decimal" placeholder="e.g. 183" />
+        {t("gear.you.height")}
+        <input value={form.heightCm} onChange={set("heightCm")} inputMode="decimal" placeholder={t("gear.eg", { value: 183 })} />
       </label>
       <label>
-        Body fat (%, if you know it)
-        <input value={form.bodyFatPercent} onChange={set("bodyFatPercent")} inputMode="decimal" placeholder="e.g. 18" />
+        {t("gear.you.fat")}
+        <input value={form.bodyFatPercent} onChange={set("bodyFatPercent")} inputMode="decimal" placeholder={t("gear.eg", { value: 18 })} />
       </label>
       <div className="row wide">
         <button className="button primary" type="submit" disabled={busy}>
-          {busy ? "Saving…" : "Save"}
+          {busy ? t("common.saving") : t("common.save")}
         </button>
         <button className="button" type="button" onClick={onDone}>
-          Cancel
+          {t("common.cancel")}
         </button>
         <Failure text={failure} />
       </div>
@@ -43,14 +45,15 @@ function DiverForm({ kit, onDone }: { kit: Kit; onDone: () => void }) {
 export function YouStrip({ kit, you, water, startEditing = false, onSaved }: { kit: Kit; you: Part | undefined; water: Water; startEditing?: boolean; onSaved?: () => void }) {
   const [editing, setEditing] = useState(startEditing);
   const { show } = useUnits();
+  const t = useT();
   const d = kit.diver;
   const facts = [
     d.massKg !== undefined ? show("weight", d.massKg) : null,
     d.heightCm !== undefined ? `${d.heightCm} cm` : null,
-    d.bodyFatPercent !== undefined ? `${d.bodyFatPercent} % body fat` : null,
+    d.bodyFatPercent !== undefined ? t("gear.you.fatValue", { fat: d.bodyFatPercent }) : null,
   ].filter(Boolean);
   return (
-    <section className="card you-strip" aria-label="You">
+    <section className="card you-strip" aria-label={t("weighting.you")}>
       <span className="you-avatar" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round">
           <circle cx="12" cy="8" r="4" />
@@ -58,20 +61,20 @@ export function YouStrip({ kit, you, water, startEditing = false, onSaved }: { k
         </svg>
       </span>
       <div style={{ flex: "1 1 240px" }}>
-        <strong>You</strong>
-        <div className="secondary">{facts.length ? facts.join(" · ") : "Your body mass is needed for any estimate."}</div>
+        <strong>{t("weighting.you")}</strong>
+        <div className="secondary">{facts.length ? facts.join(" · ") : t("gear.you.massNeeded")}</div>
       </div>
       {you && (
         <div style={{ flex: "1 1 240px", fontSize: "0.9rem" }}>
-          <div className="secondary">Your own buoyancy, normal breath</div>
+          <div className="secondary">{t("gear.you.own")}</div>
           <div>
-            <BuoyancyPill part={you} /> in {water} water
+            <BuoyancyPill part={you} /> {t("gear.you.inWater", { water: t(`water.long.${water}`) })}
           </div>
         </div>
       )}
       {onSaved && !editing && (
         <button className="button" type="button" onClick={() => setEditing(true)}>
-          Edit
+          {t("common.edit")}
         </button>
       )}
       {onSaved && editing && (

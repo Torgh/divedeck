@@ -3,6 +3,7 @@
 import { type FormEvent, useState } from "react";
 import type { TripEdit } from "@/components/TripPrep";
 import { api } from "@/components/useLive";
+import { useT } from "@/lib/i18n/useLang";
 import type { TripTodo } from "@/lib/trip";
 
 /**
@@ -11,6 +12,7 @@ import type { TripTodo } from "@/lib/trip";
  * `edit` (the phone) the list is only shown.
  */
 export function TripTodos({ todos, cards, edit }: { todos: TripTodo[]; cards: { itemId: string; title: string }[]; edit?: TripEdit }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -41,21 +43,21 @@ export function TripTodos({ todos, cards, edit }: { todos: TripTodo[]; cards: { 
   }
 
   const title = (itemId?: string) => cards.find((c) => c.itemId === itemId)?.title;
-  const open = todos.filter((t) => !t.done);
-  const done = todos.filter((t) => t.done);
-  const item = (t: TripTodo) => (
-    <li key={t.id} className={t.done ? "done" : undefined}>
+  const open = todos.filter((todo) => !todo.done);
+  const done = todos.filter((todo) => todo.done);
+  const item = (todo: TripTodo) => (
+    <li key={todo.id} className={todo.done ? "done" : undefined}>
       <label>
-        <input type="checkbox" checked={t.done} disabled={busy || !edit} onChange={(e) => call("PATCH", { id: t.id, done: e.target.checked })} />
-        <span>{t.text}</span>
+        <input type="checkbox" checked={todo.done} disabled={busy || !edit} onChange={(e) => call("PATCH", { id: todo.id, done: e.target.checked })} />
+        <span>{todo.text}</span>
       </label>
-      {t.itemId && title(t.itemId) && (
-        <a className="todo-card" href={`#card-${t.itemId}`}>
-          {title(t.itemId)}
+      {todo.itemId && title(todo.itemId) && (
+        <a className="todo-card" href={`#card-${todo.itemId}`}>
+          {title(todo.itemId)}
         </a>
       )}
-      {edit && t.by === "diver" && (
-        <button type="button" className="todo-remove" aria-label={`Remove "${t.text}"`} disabled={busy} onClick={() => call("DELETE", { id: t.id })}>
+      {edit && todo.by === "diver" && (
+        <button type="button" className="todo-remove" aria-label={t("todos.remove", { text: todo.text })} disabled={busy} onClick={() => call("DELETE", { id: todo.id })}>
           ×
         </button>
       )}
@@ -66,28 +68,30 @@ export function TripTodos({ todos, cards, edit }: { todos: TripTodo[]; cards: { 
     <section className="card stack" id="todos" aria-labelledby="todos-h">
       <div className="chart-head">
         <h2 id="todos-h" style={{ margin: 0 }}>
-          To sort out
+          {t("todos.title")}
         </h2>
-        <span className="muted">{open.length ? `${open.length} open${done.length ? ` · ${done.length} done` : ""}` : todos.length ? "All done" : ""}</span>
+        <span className="muted">
+          {open.length ? [t("todos.open", { n: open.length }), done.length ? t("todos.done", { n: done.length }) : null].filter(Boolean).join(" · ") : todos.length ? t("todos.allDone") : ""}
+        </span>
       </div>
       {todos.length === 0 && (
         <p className="muted" style={{ margin: 0 }}>
-          Nothing yet. Your companion adds what to ask the dive centre or bring when it prepares the trip{edit ? "; add your own below" : ""}.
+          {edit ? t("todos.nothingEdit") : t("todos.nothing")}
         </p>
       )}
       {open.length > 0 && <ul className="todos">{open.map(item)}</ul>}
       {done.length > 0 && (
         <details>
-          <summary className="muted">{done.length} done</summary>
+          <summary className="muted">{t("todos.done", { n: done.length })}</summary>
           <ul className="todos">{done.map(item)}</ul>
         </details>
       )}
       {edit && (
         <form className="row todo-add" onSubmit={add}>
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a to-do, e.g. Buy a new SMB" aria-label="New to-do" maxLength={300} />
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t("todos.placeholder")} aria-label={t("todos.new")} maxLength={300} />
           {cards.length > 0 && (
-            <select value={card} onChange={(e) => setCard(e.target.value)} aria-label="About a dive card">
-              <option value="">Whole trip</option>
+            <select value={card} onChange={(e) => setCard(e.target.value)} aria-label={t("todos.aboutCard")}>
+              <option value="">{t("todos.wholeTrip")}</option>
               {cards.map((c) => (
                 <option key={c.itemId} value={c.itemId}>
                   {c.title}
@@ -96,7 +100,7 @@ export function TripTodos({ todos, cards, edit }: { todos: TripTodo[]; cards: { 
             </select>
           )}
           <button className="button" type="submit" disabled={busy || !text.trim()}>
-            Add
+            {t("common.add")}
           </button>
         </form>
       )}

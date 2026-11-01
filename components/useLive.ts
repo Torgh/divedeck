@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLang } from "@/lib/i18n/useLang";
 import { noteAnswer, showingKeptCopy } from "./Offline";
 
 type Answer<T> = { data: T } | { error: string };
@@ -44,7 +45,10 @@ async function request<T>(url: string): Promise<Answer<T>> {
  * again. The previous data stays on screen while a reload runs, so nothing flashes. When the service
  * worker answered with a kept copy (the log couldn't be reached), the next version loads it again.
  */
-export function useLive<T extends { version: string }>(url: string) {
+export function useLive<T extends { version: string }>(path: string) {
+  // The server writes findings and notes in the app's language; a new language loads them again.
+  const lang = useLang();
+  const url = `${path}${path.includes("?") ? "&" : "?"}lang=${lang}`;
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

@@ -4,6 +4,7 @@ import { DiveRefError } from "../coach";
 import { UddfParseError } from "../uddf";
 import { DiveNotFoundError } from "./diveStore";
 import { LockTimeoutError } from "./files";
+import { LANGS, type Lang, parseLang } from "../i18n";
 import { KitInputError } from "../kit";
 
 /** An error with an HTTP status, turned into a `{ error }` answer by handle(). */
@@ -85,4 +86,12 @@ export function handle<C>(fn: (req: Request, ctx: C) => Promise<unknown>) {
       return NextResponse.json({ error: message }, { status });
     }
   };
+}
+
+/** The app's language, for in-app AI answers; older clients send none. */
+export const langSchema = z.enum(LANGS as [Lang, ...Lang[]]).default("en");
+
+/** The language the page asked for (`?lang=pl`), for texts the server writes; English otherwise. */
+export function langOf(req: Request): Lang {
+  return parseLang(new URL(req.url).searchParams.get("lang")) ?? "en";
 }

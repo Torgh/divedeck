@@ -13,6 +13,9 @@ import { useUnits } from "@/components/Units";
 import { useSettings } from "@/components/useSettings";
 import type { Quantity } from "@/lib/measure";
 import { formatNumber } from "@/lib/format";
+import type { Key } from "@/lib/i18n";
+import { rich } from "@/lib/i18n/rich";
+import { useLang, useT } from "@/lib/i18n/useLang";
 import type { TodoKind } from "@/lib/record";
 import type { TripRow } from "@/lib/tripViews";
 import type { LogView, ProgressSeries } from "@/lib/views";
@@ -28,35 +31,39 @@ const QUANTITY: Partial<Record<string, Quantity>> = { rmvLMin: "flow", maxAscent
 /** A progress series in the diver's units: its values, a value, its unit and its title. */
 function useSeriesUnits(p: ProgressSeries) {
   const { value, unit } = useUnits();
+  const t = useT();
   const quantity = QUANTITY[p.metric];
   const to = (v: number) => (quantity ? value(quantity, v) : v);
   const shown = quantity ? unit(quantity) : UNIT[p.metric];
-  const title = quantity ? p.label.replace(UNIT[p.metric], shown) : p.label;
+  const label = t(`progress.metric.${p.metric}`);
+  const title = quantity ? label.replace(UNIT[p.metric], shown) : label;
   return { to, unit: shown, title };
 }
 
 /** The trips under way or coming, each with how far its preparation is. */
 function UpcomingTrips() {
   const { data } = useLive<{ version: string; trips: TripRow[] }>("/api/trips");
-  const trips = data?.trips.filter((t) => t.when === "now" || t.when === "upcoming") ?? [];
+  const t = useT();
+  const trips = data?.trips.filter((trip) => trip.when === "now" || trip.when === "upcoming") ?? [];
   if (!trips.length) return null;
   return (
-    <section className="trip-cards" aria-label="Upcoming trips">
-      {trips.map((t) => (
-        <TripCard key={t.id} trip={t} />
+    <section className="trip-cards" aria-label={t("dash.upcoming")}>
+      {trips.map((trip) => (
+        <TripCard key={trip.id} trip={trip} />
       ))}
     </section>
   );
 }
 
-const TODO_COPY: Record<TodoKind, { title: string; why: string }> = {
-  "tank-volume": { title: "Tank size", why: "Needed for your gas consumption (RMV)." },
-  gas: { title: "Gas", why: "Needed to check ppO2, CNS and END." },
-  site: { title: "Dive site", why: "Lets trip preparation find your dives at the same site." },
-  review: { title: "Debrief", why: "Your companion's look at the dive." },
+const TODO_COPY: Record<TodoKind, { title: Key; why: Key }> = {
+  "tank-volume": { title: "dash.todo.tank", why: "dash.todo.tankWhy" },
+  gas: { title: "dash.todo.gas", why: "dash.todo.gasWhy" },
+  site: { title: "dash.todo.site", why: "dash.todo.siteWhy" },
+  review: { title: "dash.todo.review", why: "dash.todo.reviewWhy" },
 };
 
 function DiveLinks({ todo }: { todo: Todo }) {
+  const t = useT();
   return (
     <span className="why">
       {todo.seqs.slice(0, 8).map((seq, i) => (
@@ -65,7 +72,7 @@ function DiveLinks({ todo }: { todo: Todo }) {
           <Link href={`/dives/${todo.dives[i]}`}>#{seq}</Link>
         </span>
       ))}
-      {todo.seqs.length > 8 ? ` and ${todo.seqs.length - 8} more` : ""}
+      {todo.seqs.length > 8 ? ` ${t("dash.andMore", { n: todo.seqs.length - 8 })}` : ""}
     </span>
   );
 }
@@ -92,6 +99,7 @@ function SaveForAll({
   placeholder: string;
   onSaved: (done: BulkSave) => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -100,7 +108,7 @@ function SaveForAll({
   async function save() {
     const raw = value.trim().replace(",", ".");
     if (field === "tankVolumeL" && !(Number(raw) > 0)) {
-      setFailure("The tank size is a number of litres, e.g. 12.");
+      setFailure(t("dash.badTank"));
       return;
     }
     setBusy(true);
@@ -123,7 +131,7 @@ function SaveForAll({
         <input value={value} onChange={(e) => setValue(e.target.value)} placeholder={placeholder} inputMode={field === "tankVolumeL" ? "decimal" : "text"} />
       </label>
       <button className="button primary" type="button" disabled={busy || !value.trim()} onClick={save}>
-        {busy ? "Saving…" : `Save for ${n === 1 ? "this dive" : `${n} dives`}`}
+        {busy ? t("common.saving") : n === 1 ? t("dash.saveOne") : t("dash.saveFor", { n })}
       </button>
       {failure && (
         <span role="alert" style={{ color: "var(--critical)", flexBasis: "100%" }}>
@@ -137,6 +145,8 @@ function SaveForAll({
 /** A debrief here with an API key; with a subscription, the command to run in Claude Code or Codex. */
 function DebriefAction({ todo, onSaved }: { todo: Todo; onSaved: () => void }) {
   const { settings } = useSettings();
+  const t = useT();
+  const lang = useLang();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const provider = settings?.providers.find((p) => p.id === settings.provider);
@@ -145,7 +155,7 @@ function DebriefAction({ todo, onSaved }: { todo: Todo; onSaved: () => void }) {
   if (!provider.usesApi || !provider.key) {
     return (
       <span className="muted">
-        In {provider.app}: <Command text={`/mcp__divedeck__dive-review ${todo.seqs[last]}`} />
+        {t("dash.inApp", { app: provider.app ?? "" })} <Command text={`/mcp__divedeck__dive-review ${todo.seqs[last]}`} />
       </span>
     );
   }
@@ -153,7 +163,7 @@ function DebriefAction({ todo, onSaved }: { todo: Todo; onSaved: () => void }) {
     setBusy(true);
     setFailure(null);
     try {
-      await api("/api/coach/review", "POST", { diveId: todo.dives[last] });
+      await api("/api/coach/review", "POST", { diveId: todo.dives[last], lang });
       onSaved();
     } catch (err) {
       setFailure((err as Error).message);
@@ -164,7 +174,7 @@ function DebriefAction({ todo, onSaved }: { todo: Todo; onSaved: () => void }) {
   return (
     <>
       <button className="button" type="button" disabled={busy} onClick={ask}>
-        {busy ? "Debriefing…" : `Get a debrief of #${todo.seqs[last]}`}
+        {busy ? t("dash.debriefing") : t("dash.debriefOf", { seq: todo.seqs[last] })}
       </button>
       {failure && (
         <span role="alert" style={{ color: "var(--critical)", flexBasis: "100%" }}>
@@ -180,6 +190,7 @@ function DebriefAction({ todo, onSaved }: { todo: Todo; onSaved: () => void }) {
  * so undoing removes it again. Stays until dismissed or undone, also when the to-do row is gone.
  */
 function UndoBar({ done, onUndone, onDismiss }: { done: BulkSave; onUndone: () => void; onDismiss: () => void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   async function undo() {
@@ -197,14 +208,15 @@ function UndoBar({ done, onUndone, onDismiss }: { done: BulkSave; onUndone: () =
   return (
     <div className="notice row" role="status" style={{ justifyContent: "space-between" }}>
       <span>
-        Saved {done.field === "gas" ? "the gas " : ""}
-        <strong>{done.text}</strong> for {done.seqs.map((s) => `#${s}`).join(", ")}.
+        {rich(t(done.field === "gas" ? "dash.savedGas" : "dash.saved", { value: done.text, dives: done.seqs.map((s) => `#${s}`).join(", ") }), {
+          b: (s) => <strong>{s}</strong>,
+        })}
       </span>
       <span className="row" style={{ gap: "0.5rem" }}>
         <button className="button" type="button" disabled={busy} onClick={undo}>
-          {busy ? "Undoing…" : "Undo"}
+          {busy ? t("dash.undoing") : t("sites.undo")}
         </button>
-        <button className="button" type="button" disabled={busy} onClick={onDismiss} aria-label="Dismiss">
+        <button className="button" type="button" disabled={busy} onClick={onDismiss} aria-label={t("dash.dismiss")}>
           ×
         </button>
       </span>
@@ -218,28 +230,29 @@ function UndoBar({ done, onUndone, onDismiss }: { done: BulkSave; onUndone: () =
 }
 
 function SortOut({ todos, onSaved, onBulkSaved }: { todos: Todo[]; onSaved: () => void; onBulkSaved: (done: BulkSave) => void }) {
+  const t = useT();
   return (
     <section className="card" aria-labelledby="todo-h">
-      <h2 id="todo-h">To sort out</h2>
-      {todos.map((t) => (
-        <div key={t.kind} className="todo-row">
+      <h2 id="todo-h">{t("todos.title")}</h2>
+      {todos.map((todo) => (
+        <div key={todo.kind} className="todo-row">
           <div className="what">
-            <strong>{TODO_COPY[t.kind].title}</strong>
-            <span className="why">{TODO_COPY[t.kind].why}</span>
-            <DiveLinks todo={t} />
+            <strong>{t(TODO_COPY[todo.kind].title)}</strong>
+            <span className="why">{t(TODO_COPY[todo.kind].why)}</span>
+            <DiveLinks todo={todo} />
           </div>
-          {t.kind === "tank-volume" && <SaveForAll todo={t} field="tankVolumeL" label="Tank (L)" placeholder="12" onSaved={onBulkSaved} />}
-          {t.kind === "gas" && <SaveForAll todo={t} field="gas" label="Gas" placeholder="air, EAN32" onSaved={onBulkSaved} />}
-          {t.kind === "site" && (
-            <Link className="button" href={`/dives/${t.dives[0]}#details`}>
-              Fill in #{t.seqs[0]}
+          {todo.kind === "tank-volume" && <SaveForAll todo={todo} field="tankVolumeL" label={t("dash.tankL")} placeholder="12" onSaved={onBulkSaved} />}
+          {todo.kind === "gas" && <SaveForAll todo={todo} field="gas" label={t("details.gas")} placeholder="air, EAN32" onSaved={onBulkSaved} />}
+          {todo.kind === "site" && (
+            <Link className="button" href={`/dives/${todo.dives[0]}#details`}>
+              {t("dash.fillIn", { seq: todo.seqs[0] })}
             </Link>
           )}
-          {t.kind === "review" && <DebriefAction todo={t} onSaved={onSaved} />}
+          {todo.kind === "review" && <DebriefAction todo={todo} onSaved={onSaved} />}
         </div>
       ))}
       <p className="muted" style={{ marginBottom: 0 }}>
-        Or ask your companion in Claude Code: <Command text="/mcp__divedeck__sort-out" />
+        {t("dash.orAsk")} <Command text="/mcp__divedeck__sort-out" />
       </p>
     </section>
   );
@@ -248,21 +261,25 @@ function SortOut({ todos, onSaved, onBulkSaved }: { todos: Todo[]; onSaved: () =
 /** "worsening · 4.2 → 9.6 m/min", with an arrow for the direction and a colour for good or bad. */
 function TrendNote({ p }: { p: ProgressSeries }) {
   const { to, unit } = useSeriesUnits(p);
+  const t = useT();
+  const lang = useLang();
   const digits = unit.startsWith("cu ft") ? 2 : 1;
-  if (!p.trend) return <span className="trend">trend after 3 dives</span>;
+  if (!p.trend) return <span className="trend">{t("dash.trendAfter")}</span>;
   const { verdict, earlyAvg, recentAvg } = p.trend;
-  if (verdict === "stable") return <span className="trend">stable</span>;
+  if (verdict === "stable") return <span className="trend">{t("dash.verdict.stable")}</span>;
   const tone = verdict === "improving" ? "good" : verdict === "worsening" ? "warning" : "";
   return (
     <span className={`trend ${tone}`}>
       {recentAvg > earlyAvg ? Icon.up : recentAvg < earlyAvg ? Icon.down : null}
-      {verdict} · {formatNumber(to(earlyAvg), digits, "")} → {formatNumber(to(recentAvg), digits, unit)}
+      {t(`dash.verdict.${verdict}`)} · {formatNumber(to(earlyAvg), digits, "", lang)} → {formatNumber(to(recentAvg), digits, unit, lang)}
     </span>
   );
 }
 
 function ProgressChart({ p }: { p: ProgressSeries }) {
   const { to, unit, title } = useSeriesUnits(p);
+  const t = useT();
+  const lang = useLang();
   const x = p.points.map((pt) => pt.seq);
   const fit = p.fit;
   // The score can't leave 0–100, so neither does its trend line (nor the axis with it).
@@ -278,42 +295,44 @@ function ProgressChart({ p }: { p: ProgressSeries }) {
       <LineChart
         title={title}
         x={x}
-        xUnit="Dive"
+        xUnit={t("dash.dive")}
         formatX={(v) => `#${Math.round(v)}`}
-        formatY={(v) => formatNumber(v, unit.startsWith("cu ft") ? 2 : 1, unit)}
+        formatY={(v) => formatNumber(v, unit.startsWith("cu ft") ? 2 : 1, unit, lang)}
         height={180}
         includeY={p.metric === "score" ? [0, 100] : [0]}
         series={[
           { key: "value", label: title, color: "var(--series-1)", values: p.points.map((pt) => to(pt.value)), dots: true },
-          ...(fit ? [{ key: "trend", label: "Trend", color: "var(--series-muted)", values: x.map(fitAt), muted: true }] : []),
+          ...(fit ? [{ key: "trend", label: t("dash.trend"), color: "var(--series-muted)", values: x.map(fitAt), muted: true }] : []),
         ]}
         xTicks={x.filter((_, i) => i % Math.ceil(x.length / 8) === 0 || i === x.length - 1)}
-        refLines={p.metric === "maxAscentRateMMin" ? [{ y: limit, label: `${formatNumber(limit, 0)} ${unit} limit` }] : []}
+        refLines={p.metric === "maxAscentRateMMin" ? [{ y: limit, label: t("dash.limit", { value: `${formatNumber(limit, 0, "", lang)} ${unit}` }) }] : []}
       />
       <p className="muted" style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>
-        {p.better !== "neutral" ? `${p.better === "lower" ? "Lower" : "Higher"} is better.` : ""}
+        {p.better !== "neutral" ? t(p.better === "lower" ? "dash.lower" : "dash.higher") : ""}
       </p>
     </div>
   );
 }
 
 function Progress({ data }: { data: Data }) {
+  const t = useT();
   const charted = data.progress.filter((p) => p.points.length >= 2);
   const waiting = data.progress.filter((p) => p.points.length < 2);
+  const label = (p: ProgressSeries) => t(`progress.metric.${p.metric}`);
   // The trends of the charted metrics are on their charts; the rest (recurring issues…) stays a list.
-  const labels = charted.map((p) => `${p.label}:`);
+  const labels = charted.map((p) => `${label(p)}:`);
   const other = data.insights.filter((f) => !labels.some((l) => f.title.startsWith(l)));
   return (
     <section className="stack" aria-labelledby="prog-h">
       <div className="chart-head">
         <h2 id="prog-h" style={{ margin: 0 }}>
-          Progress
+          {t("dash.progress")}
         </h2>
         {waiting.length > 0 && (
           <span className="muted">
             {waiting
               .map((p) =>
-                p.metric === "rmvLMin" && p.points.length === 0 ? `${p.label} shows up once tank sizes are filled in` : `${p.label} starts with the second dive`,
+                p.metric === "rmvLMin" && p.points.length === 0 ? t("dash.rmvWaits", { metric: label(p) }) : t("dash.secondDive", { metric: label(p) }),
               )
               .join(" · ")}
           </span>
@@ -336,13 +355,14 @@ function Progress({ data }: { data: Data }) {
 export default function Dashboard() {
   const { data, error, loading, reload } = useLive<Data>("/api/dives");
   const [lastSave, setLastSave] = useState<BulkSave | null>(null);
-  if (error && !data) return <div className="error">Couldn&apos;t load the dive log: {error}</div>;
-  if (!data) return <p className="muted">Loading the dive log…</p>;
+  const t = useT();
+  if (error && !data) return <div className="error">{t("log.loadFailed", { error })}</div>;
+  if (!data) return <p className="muted">{t("log.loading")}</p>;
   const head = (
     <div className="page-head">
-      <h1>Dashboard</h1>
+      <h1>{t("nav.dashboard")}</h1>
       <Link className="button primary" href="/import">
-        Import dives
+        {t("log.import")}
       </Link>
     </div>
   );
@@ -353,10 +373,9 @@ export default function Dashboard() {
         <GetStarted dives={0} onImported={reload} />
         <UpcomingTrips />
         <div className="notice">
-          Your dive log is empty. <Link href="/import">Import your dives</Link> from a UDDF export, migrate the Python version&apos;s log, or
-          load the sample dives.
+          {rich(t("dash.empty"), { a: (s) => <Link href="/import">{s}</Link> })}
         </div>
-        <p className="muted">Data folder: {data.dataFolder}</p>
+        <p className="muted">{t("dash.dataFolder", { folder: data.dataFolder })}</p>
       </div>
     );
   }

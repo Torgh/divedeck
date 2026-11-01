@@ -3,6 +3,7 @@
 import { TripCard } from "@/components/TripCard";
 import { TripPrepHint } from "@/components/TripPrepHint";
 import { useLive } from "@/components/useLive";
+import { useT } from "@/lib/i18n/useLang";
 import type { TripRow } from "@/lib/tripViews";
 
 type Data = { version: string; trips: TripRow[]; next: TripRow | null };
@@ -23,24 +24,25 @@ function Group({ title, trips }: { title: string; trips: TripRow[] }) {
 
 export default function Trips() {
   const { data, error, loading } = useLive<Data>("/api/trips");
-  if (error && !data) return <div className="error">Couldn&apos;t load the trips: {error}</div>;
-  if (!data) return <p className="muted">Loading the trips…</p>;
-  const of = (...when: TripRow["when"][]) => data.trips.filter((t) => when.includes(t.when));
+  const t = useT();
+  if (error && !data) return <div className="error">{t("trips.loadFailed", { error })}</div>;
+  if (!data) return <p className="muted">{t("trips.loading")}</p>;
+  const of = (...when: TripRow["when"][]) => data.trips.filter((trip) => when.includes(trip.when));
   return (
     <div className={`stack ${loading ? "loading" : ""}`} style={{ gap: "1.25rem" }}>
       <div className="page-head">
-        <h1>Trips</h1>
+        <h1>{t("nav.trips")}</h1>
       </div>
       {!data.trips.length ? (
         <div className="notice">
-          No trips yet.
+          {t("trips.none")}
           <TripPrepHint />
         </div>
       ) : (
         <>
-          <Group title="Coming up" trips={of("now", "upcoming")} />
-          <Group title="No dates yet" trips={of("undated")} />
-          <Group title="Past" trips={of("past")} />
+          <Group title={t("trips.comingUp")} trips={of("now", "upcoming")} />
+          <Group title={t("format.noDatesYet")} trips={of("undated")} />
+          <Group title={t("trips.past")} trips={of("past")} />
           <TripPrepHint />
         </>
       )}
