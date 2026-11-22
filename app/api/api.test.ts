@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GET as getDive, PATCH as patchDive } from "./dives/[id]/route";
 import { GET as getDives } from "./dives/route";
-import { GET as exportLog } from "./export/route";
+import { GET as exportLog, POST as writePhoneFile } from "./export/route";
 import { POST as importFiles } from "./import/route";
 import { GET as getKit, PUT as putKit } from "./kit/route";
 import { POST as importSamples } from "./import/samples/route";
@@ -274,6 +274,15 @@ describe("API", () => {
     expect(file.dives).toHaveLength(9);
     expect(file.kit.format).toBe("divedeck/kit");
     expect((await exportLog(req("/api/export", { headers: { origin: "https://evil.example" } }), {})).status).toBe(403);
+  });
+
+  it("writes the phone's file in DiveDeck's folder on request", async () => {
+    await importSamples(json("/api/import/samples", "POST", {}), {});
+    const res = await writePhoneFile(json("/api/export", "POST", {}), {});
+    expect(res.status).toBe(200);
+    const { written } = await res.json();
+    expect(written).toBe(path.join(home, "phone", "DiveDeck.divedeck.json"));
+    expect(JSON.parse(fs.readFileSync(written, "utf-8")).dives).toHaveLength(9);
   });
 
   it("only answers requests addressed to localhost", async () => {

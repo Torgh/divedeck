@@ -14,6 +14,8 @@ export interface SettingsView {
   apps: { claudeCode: AppStatus; codex: AppStatus };
   configPath: string;
   dataFolder: string;
+  /** The file DiveDeck keeps up to date for the phone app. */
+  phoneFile: string;
 }
 
 /** The coach settings, and a way to change them. */

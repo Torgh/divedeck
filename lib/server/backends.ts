@@ -7,6 +7,7 @@ import { readSettings } from "./config";
 import { writeFileAtomic } from "./files";
 import { GoogleDriveBackend } from "./googleDrive";
 import { CLOUD_FOLDER, dataDir, envVar, LEGACY_CLOUD_FOLDERS } from "./paths";
+import { withPhoneFile } from "./phoneFile";
 
 /**
  * Where the dive log lives. The dive files (`dives`), the original UDDF files (`originals`) and the
@@ -15,7 +16,8 @@ import { CLOUD_FOLDER, dataDir, envVar, LEGACY_CLOUD_FOLDERS } from "./paths";
  * on Google Drive.
  */
 export type StorageKind = "local" | "onedrive" | "google";
-export type Area = "dives" | "originals" | "trips" | "kit";
+/** `phone` holds the file the phone app opens (phoneFile.ts). */
+export type Area = "dives" | "originals" | "trips" | "kit" | "phone";
 
 export interface StoredFile {
   name: string;
@@ -128,6 +130,7 @@ export function backendFor(kind: StorageKind): Backend {
   return new FolderBackend("local", dataDir());
 }
 
+/** The chosen storage; every change to the log there also refreshes the phone's file. */
 export function activeBackend(): Backend {
-  return backendFor(activeStorage());
+  return withPhoneFile(backendFor(activeStorage()));
 }
