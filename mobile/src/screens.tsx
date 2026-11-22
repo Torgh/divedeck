@@ -43,7 +43,7 @@ function How() {
   return <>{rich(t("phone.how"), { b: (s) => <strong>{s}</strong> })}</>;
 }
 
-export function Welcome({ onImport }: { onImport: () => void }) {
+export function Welcome({ onImport, onDrive }: { onImport: () => void; onDrive?: () => void }) {
   const t = useT();
   return (
     <div className="stack welcome" style={{ gap: "1.25rem" }}>
@@ -52,7 +52,12 @@ export function Welcome({ onImport }: { onImport: () => void }) {
       <p className="secondary">
         {t("phone.welcomeText")} <How />
       </p>
-      <button type="button" className="button primary" onClick={onImport}>
+      {onDrive && (
+        <button type="button" className="button primary" onClick={onDrive}>
+          {t("phone.fromDrive")}
+        </button>
+      )}
+      <button type="button" className={`button ${onDrive ? "" : "primary"}`} onClick={onImport}>
         {t("phone.importFile")}
       </button>
       <LanguagePicker />
@@ -431,6 +436,8 @@ export function FileScreen({
   log,
   onPhone,
   changes,
+  drive,
+  onDrive,
   onImport,
   onSend,
   onForget,
@@ -438,6 +445,8 @@ export function FileScreen({
   log: DiveDeckExport;
   onPhone: number;
   changes: number;
+  drive: string | null;
+  onDrive?: () => void;
   onImport: () => void;
   onSend: () => void;
   onForget: () => void;
@@ -464,8 +473,14 @@ export function FileScreen({
         <p className="secondary" style={{ margin: 0 }}>
           {t("phone.asThen")} <How />
         </p>
+        {drive && <p style={{ margin: 0 }}>{rich(t("phone.driveYours", { account: drive }), { b: (s) => <strong>{s}</strong> })}</p>}
         <div className="row">
-          <button type="button" className="button primary" onClick={onImport}>
+          {onDrive && (
+            <button type="button" className="button primary" onClick={onDrive}>
+              {t("phone.fromDrive")}
+            </button>
+          )}
+          <button type="button" className={`button ${onDrive ? "" : "primary"}`} onClick={onImport}>
             {t("phone.importNewer")}
           </button>
           <button type="button" className="button" onClick={onForget}>

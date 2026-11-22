@@ -20,6 +20,7 @@ import {
 } from "@/lib/phoneEdits";
 import { tripsView } from "@/lib/tripViews";
 import { logView } from "@/lib/views";
+import { downloadPhoneFile, driveAccount, findPhoneFile } from "./drive";
 import { PlanScreen } from "./plan";
 import { DiveScreen, FileScreen, GearScreen, Home, localTime, LogScreen, TripScreen, TripsScreen, Welcome } from "./screens";
 import { shareFile } from "./share";
@@ -57,6 +58,12 @@ export function App() {
       setLog(stored);
     });
   }, []);
+
+  // The diver's own build fetches the PC's file from Google Drive: on start, on resume, and on request.
+  const drive = driveAccount();
+  // The latest sync (it reads the current log and edits), for the resume listener; set after each render.
+  const syncRef = useRef<(quiet: boolean) => Promise<void>>(async () => undefined);
+  const loaded = log !== undefined;
 
   // Android back button: back through the screens opened, out of the app from the dashboard.
   const pathRef = useRef(path);
@@ -116,23 +123,69 @@ export function App() {
     setEdits(next);
   }
 
+  /** Takes a newer export from the PC; what was changed on the phone and isn't in it stays. */
+  async function takeExport(json: unknown) {
+    if (isPhoneDives(json)) throw new Error(t("phone.forPc"));
+    const next = readExport(json);
+    const kept = stillOnPhone(phoneFiles, next.dives);
+    const waiting = pendingEdits(edits, next.dives, next.trips);
+    await saveLog(next);
+    await savePhoneFiles(kept);
+    await saveEdits(waiting);
+    setLog(next);
+    setPhoneFiles(kept);
+    setEdits(waiting);
+    return next;
+  }
+
+  const DRIVE_SEEN = "divedeck-drive-modified";
+  const sync = async (quiet: boolean) => {
+    try {
+      const found = await findPhoneFile();
+      if (!found) {
+        if (!quiet) setNotice(t("phone.driveNone"));
+        return;
+      }
+      let seen: string | null = null;
+      try {
+        seen = localStorage.getItem(DRIVE_SEEN);
+      } catch {
+        // not kept: the file is downloaded again
+      }
+      if (log && seen === found.modifiedTime) {
+        if (!quiet) setNotice(t("phone.driveUpToDate"));
+        return;
+      }
+      const next = await takeExport(JSON.parse(await downloadPhoneFile(found.id)));
+      try {
+        localStorage.setItem(DRIVE_SEEN, found.modifiedTime);
+      } catch {
+        // as above
+      }
+      setNotice(t("phone.driveUpdated", { dives: t("log.count", { n: next.dives.length }), trips: t("phone.trips", { n: next.trips.length }) }));
+    } catch (e) {
+      // Offline on the boat is normal: say nothing unless asked.
+      if (!quiet) setNotice(t("phone.driveFailed", { error: (e as Error).message }));
+    }
+  };
+  useEffect(() => {
+    syncRef.current = sync;
+  });
+  // Once the stored log is read, then whenever the app comes back to the front.
+  useEffect(() => {
+    if (!drive || !loaded) return;
+    void syncRef.current(true);
+    const resume = NativeApp.addListener("resume", () => void syncRef.current(true));
+    return () => void resume.then((h) => h.remove());
+  }, [drive, loaded]);
+
   // One picker for both: the export from the PC (JSON), or a UDDF file from the dive computer's app.
   async function importFile(file: File) {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const text = new TextDecoder().decode(bytes);
       if (text.trimStart().startsWith("{")) {
-        const json = JSON.parse(text);
-        if (isPhoneDives(json)) throw new Error(t("phone.forPc"));
-        const next = readExport(json);
-        const kept = stillOnPhone(phoneFiles, next.dives);
-        const waiting = pendingEdits(edits, next.dives, next.trips);
-        await saveLog(next);
-        await savePhoneFiles(kept);
-        await saveEdits(waiting);
-        setLog(next);
-        setPhoneFiles(kept);
-        setEdits(waiting);
+        const next = await takeExport(JSON.parse(text));
         setNotice(t("phone.imported", { dives: t("log.count", { n: next.dives.length }), trips: t("phone.trips", { n: next.trips.length }) }));
         go("/");
         return;
@@ -179,7 +232,8 @@ export function App() {
   const current = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
   let screen: React.ReactNode;
-  if (!log || !views || !merged) screen = <Welcome onImport={pickFile} />;
+  const fromDrive = drive ? () => void syncRef.current(false) : undefined;
+  if (!log || !views || !merged) screen = <Welcome onImport={pickFile} onDrive={fromDrive} />;
   else if (path.startsWith("/dives/")) {
     const id = decodeURIComponent(path.slice("/dives/".length));
     screen = (
@@ -209,7 +263,7 @@ export function App() {
   }
   else if (path === "/trips") screen = <TripsScreen trips={views.trips.trips} />;
   else if (path === "/gear") screen = <GearScreen kit={log.kit} records={merged.dives} />;
-  else if (path === "/file") screen = <FileScreen log={log} onPhone={merged.phoneOnly.size} changes={changes} onImport={pickFile} onSend={sendToPc} onForget={forget} />;
+  else if (path === "/file") screen = <FileScreen log={log} onPhone={merged.phoneOnly.size} changes={changes} drive={drive} onDrive={fromDrive} onImport={pickFile} onSend={sendToPc} onForget={forget} />;
   else screen = <Home log={views.log} next={views.trips.next} onPhone={merged.phoneOnly.size} />;
 
   return (

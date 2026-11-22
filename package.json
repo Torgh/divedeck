@@ -14,6 +14,7 @@
     "android": "bun run build:mobile && cap sync android && node mobile/scripts/android.mjs run",
     "android:release": "bun run build:mobile && cap sync android && node mobile/scripts/android.mjs release",
     "android:keystore": "node mobile/scripts/android.mjs keystore",
+    "android:me": "bun mobile/scripts/personal.ts",
     "icons:mobile": "node mobile/scripts/icons.mjs",
     "mcp": "bun mcp/server.ts",
     "migrate": "bun scripts/migrate-from-python.ts",

@@ -9,6 +9,9 @@ export default defineConfig({
   root: here("./"),
   base: "./",
   plugins: [react()],
+  // The diver's own build ("for me", mobile/scripts/personal.ts) passes their Google Drive sign-in
+  // here; every other build gets an empty string, so no credential ever reaches it.
+  define: { __DIVEDECK_PERSONAL__: JSON.stringify(process.env.DIVEDECK_PERSONAL_BUILD ?? "") },
   resolve: {
     alias: [
       // The shared components link with next/link; on the phone a plain link to the screen after "#".
