@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DetailsForm } from "@/components/DetailsForm";
 import { headline, MetricCards, ScoreRing } from "@/components/DiveSummary";
 import { DiveList } from "@/components/DiveList";
 import { FindingBadge, Findings } from "@/components/Findings";
@@ -16,11 +17,13 @@ import { TripSites } from "@/components/TripSites";
 import { TripTodos } from "@/components/TripTodos";
 import { TripCard } from "@/components/TripCard";
 import { useUnits } from "@/components/Units";
+import { autoDebrief } from "@/lib/autoDebrief";
 import type { DiveDeckExport } from "@/lib/exportFile";
 import { formatDate } from "@/lib/format";
 import { rich } from "@/lib/i18n/rich";
 import { useLang, useT } from "@/lib/i18n/useLang";
 import type { Kit, Water } from "@/lib/kit";
+import type { DetailsChange } from "@/lib/phoneEdits";
 import type { DiveRecord } from "@/lib/record";
 import type { TripPlan } from "@/lib/trip";
 import { type TripRow, tripView } from "@/lib/tripViews";
@@ -90,12 +93,25 @@ export function LogScreen({ log }: { log: LogView }) {
   );
 }
 
-/** One dive, as on the PC, without the forms: the phone only shows the log. */
-export function DiveScreen({ records, id, onPhone }: { records: DiveRecord[]; id: string; onPhone: boolean }) {
+/** One dive, as on the PC: its details are changed here and sent to the PC; without a debrief, one from the numbers. */
+export function DiveScreen({
+  records,
+  id,
+  onPhone,
+  kit,
+  onSaveDetails,
+}: {
+  records: DiveRecord[];
+  id: string;
+  onPhone: boolean;
+  kit: Kit;
+  onSaveDetails: (change: DetailsChange) => Promise<void>;
+}) {
   const { show } = useUnits();
   const t = useT();
   const lang = useLang();
   const [tab, setTab] = useState<"debrief" | "findings">("debrief");
+  const [editing, setEditing] = useState(false);
   const data = diveView(records, id, lang);
   if (!data) return <div className="notice">{rich(t("phone.noDive"), { a: (s) => <a href="#/dives">{s}</a> })}</div>;
   const { dive, metrics, details } = data;
@@ -181,22 +197,46 @@ export function DiveScreen({ records, id, onPhone }: { records: DiveRecord[]; id
               <p className="muted">{t("common.savedOn", { date: formatDate(data.review.savedAt.slice(0, 19), true, lang) })}</p>
             </div>
           ) : (
-            <p className="muted">{onPhone ? t("phone.noDebriefHere") : t("phone.noDebrief")}</p>
+            <div className="review">
+              <p className="muted" style={{ marginTop: 0 }}>
+                <strong>{t("phone.autoDebrief")}</strong>
+              </p>
+              <FoldedMarkdown markdown={autoDebrief(metrics, data.averages, lang)} />
+              <p className="muted">{onPhone ? t("phone.noDebriefHere") : t("phone.noDebrief")}</p>
+            </div>
           )}
         </div>
       </section>
 
-      {known.length > 0 && (
-        <section className="card metric-card" aria-labelledby="details-h">
-          <h3 id="details-h">{t("dive.details")}</h3>
-          {known.map(([label, value]) => (
-            <div key={label} className="kv">
-              <span>{label}</span>
-              <strong>{value}</strong>
+      <section className="card metric-card" aria-labelledby="details-h">
+        <h3 id="details-h">{t("dive.details")}</h3>
+        {editing ? (
+          <DetailsForm
+            key={id}
+            id={id}
+            details={details}
+            site={dive.site}
+            kit={kit}
+            save={onSaveDetails}
+            savedText={t("phone.detailsHere")}
+            onSaved={() => setEditing(false)}
+          />
+        ) : (
+          <>
+            {known.map(([label, value]) => (
+              <div key={label} className="kv">
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+            <div className="row">
+              <button type="button" className="button" onClick={() => setEditing(true)}>
+                {t("phone.editDetails")}
+              </button>
             </div>
-          ))}
-        </section>
-      )}
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -236,8 +276,22 @@ export function TripsScreen({ trips }: { trips: TripRow[] }) {
   );
 }
 
-/** One trip's preparation, as on the PC; the to-dos, sites and logged dives are changed there. */
-export function TripScreen({ plans, records, id, now }: { plans: TripPlan[]; records: DiveRecord[]; id: string; now: Date }) {
+/** One trip's preparation, as on the PC; to-dos are ticked off here, the sites and logged dives are changed there. */
+export function TripScreen({
+  plans,
+  records,
+  id,
+  now,
+  ticked,
+  onTick,
+}: {
+  plans: TripPlan[];
+  records: DiveRecord[];
+  id: string;
+  now: Date;
+  ticked: number;
+  onTick: (todoId: string, done: boolean) => void;
+}) {
   const t = useT();
   const lang = useLang();
   const data = tripView(plans, records, id, now, lang);
@@ -254,7 +308,12 @@ export function TripScreen({ plans, records, id, now }: { plans: TripPlan[]; rec
         </div>
       </div>
 
-      <TripTodos todos={data.todos} cards={data.dives.map((d) => ({ itemId: d.itemId, title: d.date ? `${d.title} (${formatDate(d.date, false, lang)})` : d.title }))} />
+      <TripTodos
+        todos={data.todos}
+        cards={data.dives.map((d) => ({ itemId: d.itemId, title: d.date ? `${d.title} (${formatDate(d.date, false, lang)})` : d.title }))}
+        onTick={onTick}
+      />
+      {ticked > 0 && <p className="muted" style={{ margin: "-0.75rem 0 0" }}>{t("phone.todosHere")}</p>}
 
       <BeforeYouGo data={data} />
 
@@ -371,12 +430,14 @@ export function GearScreen({ kit, records }: { kit: Kit; records: DiveRecord[] }
 export function FileScreen({
   log,
   onPhone,
+  changes,
   onImport,
   onSend,
   onForget,
 }: {
   log: DiveDeckExport;
   onPhone: number;
+  changes: number;
   onImport: () => void;
   onSend: () => void;
   onForget: () => void;
@@ -420,11 +481,12 @@ export function FileScreen({
           {t("phone.fromComputerHelp")}
         </p>
         {onPhone > 0 && <p style={{ margin: 0 }}>{rich(t("phone.onlyOnPhone", { n: onPhone }), { b: (s) => <strong>{s}</strong> })}</p>}
+        {changes > 0 && <p style={{ margin: 0 }}>{rich(t("phone.changesOnPhone", { n: changes }), { b: (s) => <strong>{s}</strong> })}</p>}
         <div className="row">
-          <button type="button" className={`button ${onPhone ? "" : "primary"}`} onClick={onImport}>
+          <button type="button" className={`button ${onPhone || changes ? "" : "primary"}`} onClick={onImport}>
             {t("phone.importUddf")}
           </button>
-          {onPhone > 0 && (
+          {(onPhone > 0 || changes > 0) && (
             <button type="button" className="button primary" onClick={onSend}>
               {t("phone.send")}
             </button>

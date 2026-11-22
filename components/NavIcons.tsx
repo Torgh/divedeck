@@ -9,6 +9,12 @@ const ICONS: Record<string, React.ReactNode> = {
     </>
   ),
   log: <path d="M3 5 L7 17 H13 L15 10 H18 L19 6" />,
+  plan: (
+    <>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 13l4-4M12 5V3M9 3h6" />
+    </>
+  ),
   trips: (
     <>
       <path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z" />

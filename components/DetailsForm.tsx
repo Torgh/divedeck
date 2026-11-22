@@ -5,13 +5,31 @@ import { gasLabel } from "@/lib/dive";
 import { useT } from "@/lib/i18n/useLang";
 import { type Kit, type Water, waterOf } from "@/lib/kit";
 import type { WeightingEstimate } from "@/lib/weighting";
-import type { DiveDetails } from "@/lib/record";
+import type { DetailsChange } from "@/lib/phoneEdits";
+import type { DiveDetails, Weighting } from "@/lib/record";
 import { api } from "./useLive";
 
 /** What the dive computer doesn't record, filled in by the diver. Empty fields are removed. */
 type KitView = Kit & { estimates?: Record<string, Record<Water, WeightingEstimate>> };
 
-export function DetailsForm({ id, details, site, kit, onSaved }: { id: string; details: DiveDetails; site: string | null; kit: KitView | null; onSaved: () => void }) {
+/** `save` keeps the change somewhere else than the PC's log (the phone); `savedText` then says where. */
+export function DetailsForm({
+  id,
+  details,
+  site,
+  kit,
+  onSaved,
+  save: keep,
+  savedText,
+}: {
+  id: string;
+  details: DiveDetails;
+  site: string | null;
+  kit: KitView | null;
+  onSaved: () => void;
+  save?: (change: DetailsChange) => Promise<void>;
+  savedText?: string;
+}) {
   const initial = {
     site: details.site ?? "",
     location: details.location ?? "",
@@ -48,7 +66,7 @@ export function DetailsForm({ id, details, site, kit, onSaved }: { id: string; d
     }
     setSaving(true);
     try {
-      await api(`/api/dives/${id}`, "PATCH", {
+      const change: DetailsChange = {
         site: form.site,
         location: form.location,
         buddy: form.buddy,
@@ -57,10 +75,12 @@ export function DetailsForm({ id, details, site, kit, onSaved }: { id: string; d
         gas: form.gas.trim() || null,
         gearSetId: form.gearSetId || null,
         ballastKg: lead ? Number(lead) : null,
-        water: form.water || null,
-        weighting: form.weighting || null,
-      });
-      setStatus({ ok: true, text: t("details.saved") });
+        water: (form.water || null) as Water | null,
+        weighting: (form.weighting || null) as Weighting | null,
+      };
+      if (keep) await keep(change);
+      else await api(`/api/dives/${id}`, "PATCH", change);
+      setStatus({ ok: true, text: savedText ?? t("details.saved") });
       onSaved();
     } catch (err) {
       setStatus({ ok: false, text: (err as Error).message });

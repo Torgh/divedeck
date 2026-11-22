@@ -36,6 +36,20 @@ export interface DiveDetails {
 
 export type Weighting = "light" | "ok" | "heavy";
 
+/** A change to the details: a field set, or removed with null or an empty string; left out, kept. */
+export type DetailsPatch = { [K in keyof DiveDetails]?: DiveDetails[K] | null };
+
+/** The details with the patch applied (texts trimmed), as the PC and the phone both save them. */
+export function applyDetailsPatch(details: DiveDetails, patch: DetailsPatch): DiveDetails {
+  const out: Record<string, unknown> = { ...details };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    if (value === null || value === "") delete out[key];
+    else out[key] = typeof value === "string" ? value.trim() : value;
+  }
+  return out as DiveDetails;
+}
+
 export interface Review {
   markdown: string;
   savedAt: string;

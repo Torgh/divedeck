@@ -7,16 +7,29 @@ import { formatDate } from "@/lib/format";
 import type { Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/useLang";
 import { buildPhoneDives, isPhoneDives, type PhoneFile, phoneDivesFileName, phoneFile, stillOnPhone, withPhoneDives } from "@/lib/phoneDives";
+import {
+  applyDiveEdits,
+  applyTripEdits,
+  countEdits,
+  type DetailsChange,
+  noEdits,
+  pendingEdits,
+  type PhoneEdits,
+  withDetailsChange,
+  withTodo,
+} from "@/lib/phoneEdits";
 import { tripsView } from "@/lib/tripViews";
 import { logView } from "@/lib/views";
+import { PlanScreen } from "./plan";
 import { DiveScreen, FileScreen, GearScreen, Home, localTime, LogScreen, TripScreen, TripsScreen, Welcome } from "./screens";
 import { shareFile } from "./share";
-import { forgetLog, loadLog, loadPhoneFiles, saveLog, savePhoneFiles } from "./storage";
+import { forgetLog, loadEdits, loadLog, loadPhoneFiles, saveEdits, saveLog, savePhoneFiles } from "./storage";
 import { go, useHashPath } from "./useHashPath";
 
 const TABS: { href: string; label: Key; icon: string }[] = [
   { href: "/", label: "nav.dashboard", icon: "dashboard" },
   { href: "/dives", label: "nav.log", icon: "log" },
+  { href: "/plan", label: "nav.plan", icon: "plan" },
   { href: "/trips", label: "nav.trips", icon: "trips" },
   { href: "/gear", label: "nav.gear", icon: "gear" },
   { href: "/file", label: "phone.yourFile", icon: "import" },
@@ -27,6 +40,8 @@ export function App() {
   const [log, setLog] = useState<DiveDeckExport | null | undefined>(undefined);
   // UDDF files imported on the phone, shown with the log until an export from the PC holds them.
   const [phoneFiles, setPhoneFiles] = useState<PhoneFile[]>([]);
+  // Details and to-dos changed on the phone, shown over the export until one holds them.
+  const [edits, setEdits] = useState<PhoneEdits>(noEdits);
   const [notice, setNotice] = useState<string | null>(null);
   // Re-read on resume so "in 3 days" moves on when the app was left open overnight.
   const [now, setNow] = useState(() => new Date());
@@ -36,8 +51,9 @@ export function App() {
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    void Promise.all([loadLog(), loadPhoneFiles()]).then(([stored, files]) => {
+    void Promise.all([loadLog(), loadPhoneFiles(), loadEdits()]).then(([stored, files, changed]) => {
       setPhoneFiles(files);
+      setEdits(changed);
       setLog(stored);
     });
   }, []);
@@ -86,8 +102,19 @@ export function App() {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  const merged = useMemo(() => (log ? withPhoneDives(log.dives, phoneFiles) : null), [log, phoneFiles]);
-  const views = useMemo(() => (log && merged ? { log: logView(merged.dives, lang), trips: tripsView(log.trips, now) } : null), [log, merged, now, lang]);
+  const merged = useMemo(() => {
+    if (!log) return null;
+    const withFiles = withPhoneDives(log.dives, phoneFiles);
+    return { ...withFiles, dives: applyDiveEdits(withFiles.dives, edits) };
+  }, [log, phoneFiles, edits]);
+  const trips = useMemo(() => (log ? applyTripEdits(log.trips, edits) : []), [log, edits]);
+  const views = useMemo(() => (log && merged ? { log: logView(merged.dives, lang), trips: tripsView(trips, now) } : null), [log, merged, trips, now, lang]);
+  const changes = countEdits(edits);
+
+  async function keepEdits(next: PhoneEdits) {
+    await saveEdits(next);
+    setEdits(next);
+  }
 
   // One picker for both: the export from the PC (JSON), or a UDDF file from the dive computer's app.
   async function importFile(file: File) {
@@ -99,10 +126,13 @@ export function App() {
         if (isPhoneDives(json)) throw new Error(t("phone.forPc"));
         const next = readExport(json);
         const kept = stillOnPhone(phoneFiles, next.dives);
+        const waiting = pendingEdits(edits, next.dives, next.trips);
         await saveLog(next);
         await savePhoneFiles(kept);
+        await saveEdits(waiting);
         setLog(next);
         setPhoneFiles(kept);
+        setEdits(waiting);
         setNotice(t("phone.imported", { dives: t("log.count", { n: next.dives.length }), trips: t("phone.trips", { n: next.trips.length }) }));
         go("/");
         return;
@@ -128,17 +158,19 @@ export function App() {
   async function sendToPc() {
     const at = new Date().toISOString();
     try {
-      await shareFile(phoneDivesFileName(at), JSON.stringify(buildPhoneDives(phoneFiles, at)));
+      await shareFile(phoneDivesFileName(at), JSON.stringify(buildPhoneDives(phoneFiles, at, edits)));
     } catch (e) {
       setNotice((e as Error).message);
     }
   }
 
   async function forget() {
-    if (merged?.phoneOnly.size && !window.confirm(t("phone.confirmForget", { n: merged.phoneOnly.size }))) return;
+    const waiting = (merged?.phoneOnly.size ?? 0) + changes;
+    if (waiting && !window.confirm(t("phone.confirmForget", { n: waiting }))) return;
     await forgetLog();
     setLog(null);
     setPhoneFiles([]);
+    setEdits(noEdits());
     go("/");
   }
 
@@ -150,13 +182,34 @@ export function App() {
   if (!log || !views || !merged) screen = <Welcome onImport={pickFile} />;
   else if (path.startsWith("/dives/")) {
     const id = decodeURIComponent(path.slice("/dives/".length));
-    screen = <DiveScreen records={merged.dives} id={id} onPhone={merged.phoneOnly.has(id)} />;
+    screen = (
+      <DiveScreen
+        records={merged.dives}
+        id={id}
+        onPhone={merged.phoneOnly.has(id)}
+        kit={log.kit}
+        onSaveDetails={(change: DetailsChange) => keepEdits(withDetailsChange(edits, id, change, new Date().toISOString()))}
+      />
+    );
   }
   else if (path === "/dives") screen = <LogScreen log={views.log} />;
-  else if (path.startsWith("/trips/")) screen = <TripScreen plans={log.trips} records={merged.dives} id={decodeURIComponent(path.slice("/trips/".length))} now={now} />;
+  else if (path === "/plan") screen = <PlanScreen records={merged.dives} kit={log.kit} now={now} />;
+  else if (path.startsWith("/trips/")) {
+    const tripId = decodeURIComponent(path.slice("/trips/".length));
+    screen = (
+      <TripScreen
+        plans={trips}
+        records={merged.dives}
+        id={tripId}
+        now={now}
+        ticked={Object.keys(edits.todos[tripId] ?? {}).length}
+        onTick={(todoId, done) => void keepEdits(withTodo(edits, tripId, todoId, done, new Date().toISOString()))}
+      />
+    );
+  }
   else if (path === "/trips") screen = <TripsScreen trips={views.trips.trips} />;
   else if (path === "/gear") screen = <GearScreen kit={log.kit} records={merged.dives} />;
-  else if (path === "/file") screen = <FileScreen log={log} onPhone={merged.phoneOnly.size} onImport={pickFile} onSend={sendToPc} onForget={forget} />;
+  else if (path === "/file") screen = <FileScreen log={log} onPhone={merged.phoneOnly.size} changes={changes} onImport={pickFile} onSend={sendToPc} onForget={forget} />;
   else screen = <Home log={views.log} next={views.trips.next} onPhone={merged.phoneOnly.size} />;
 
   return (
