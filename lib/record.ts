@@ -97,7 +97,39 @@ export function effectiveDive(record: DiveRecord): Dive {
       main.mixId = DIVER_GAS_ID;
     }
   }
+  if (details.notes === undefined) dive.notes = cleanNotes(dive.notes);
+  // Some computers (Shearwater) don't link the tank to its gas: the first sample's gas, or the only one, is the tank's.
+  const tank = dive.tanks?.[0];
+  if (tank && !(tank.mixId && Object.hasOwn(dive.gasMixes, tank.mixId))) {
+    const first = dive.samples?.[0]?.mixRef;
+    const ids = Object.keys(dive.gasMixes);
+    if (first && Object.hasOwn(dive.gasMixes, first)) tank.mixId = first;
+    else if (ids.length === 1) tank.mixId = ids[0];
+  }
   return dive;
+}
+
+const NOTE_LABEL = /(^|\s)(\p{Lu}[\p{L}]*):/gu;
+
+/**
+ * Notes without the empty labels of a computer's notes template ("Summary: Environment: Gas: Gear: Issues:"),
+ * or null when nothing else is left. Notes with nothing to drop come back as they were.
+ */
+export function cleanNotes(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const labels = [...notes.matchAll(NOTE_LABEL)].map((m) => ({ label: m[2], from: m.index + m[1].length, to: m.index + m[0].length }));
+  if (!labels.length) return notes.trim() || null;
+  const parts: string[] = [];
+  const before = notes.slice(0, labels[0].from).trim();
+  if (before) parts.push(before);
+  let dropped = false;
+  labels.forEach((l, i) => {
+    const text = notes.slice(l.to, labels[i + 1]?.from ?? notes.length).trim();
+    if (text) parts.push(`${l.label}: ${text}`);
+    else dropped = true;
+  });
+  if (!dropped) return notes.trim() || null;
+  return parts.join(" ") || null;
 }
 
 export function analyzeRecord(record: DiveRecord, lang: Lang = "en"): DiveAnalysis {

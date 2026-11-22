@@ -69,7 +69,11 @@ export const pl: Messages = {
       detail: "RMV {rmv} L/min. Pracuj nad spokojnym oddechem, trymem i wydajnością pracy płetw; sprawdź, czy nic nie przecieka.",
     },
     rmvLow: { title: "Oszczędny oddech", detail: "RMV {rmv} L/min to bardzo oszczędnie." },
-    nearNdl: { title: "Blisko limitu bezdekompresyjnego", detail: "NDL spadł do {ndl} min." },
+    nearNdl: { title: "Blisko limitu bezdekompresyjnego", detail: "NDL spadł do {ndl} min. Zaplanuj wyjście z głębokości, zanim limit tak się zbliży." },
+    rmvBottomHigh: {
+      title: "Ciężki oddech na głębokości",
+      detail: "Na dnie oddychałeś {bottom} L/min, a średnio w całym nurkowaniu {rmv} L/min. Zrób pauzę przy zejściu, wydychaj powoli i mniej pracuj płetwami na głębokości.",
+    },
     sawtooth: {
       title: "Profil piłokształtny",
       detail: "{n} powtórzonych wynurzeń/zanurzeń o 4 m lub więcej. Profile jo-jo zwiększają ryzyko DCS.",
@@ -445,6 +449,7 @@ export const pl: Messages = {
     gas: "Gaz",
     gasLeft: "Pozostały gaz",
     rmv: "Zużycie (RMV)",
+    rmvBottom: "Na dnie",
     addTank: "dodaj pojemność butli",
     tankUnknown: "pojemność butli nieznana",
     noTankPressure: "brak ciśnienia w butli",

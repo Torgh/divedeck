@@ -270,6 +270,7 @@
      "min_temp_c": 22.9,
      "gas_used_l": null,
      "rmv_l_min": null,
+     "bottom_rmv_l_min": null,
      "sac_bar_min": 1.79,
      "end_pressure_bar": 60,
      "max_ascent_rate_m_min": 3.0,

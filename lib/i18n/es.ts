@@ -64,7 +64,11 @@ export const es: Messages = {
       detail: "RMV {rmv} L/min. Trabaja la respiración relajada, el trimado y la eficiencia del aleteo; comprueba que no haya fugas.",
     },
     rmvLow: { title: "Respiración eficiente", detail: "Un RMV de {rmv} L/min es muy económico." },
-    nearNdl: { title: "Cerca del límite sin descompresión", detail: "El NDL bajó a {ndl} min." },
+    nearNdl: { title: "Cerca del límite sin descompresión", detail: "El NDL bajó a {ndl} min. Planifica cuándo dejar la profundidad antes de acercarte tanto al límite." },
+    rmvBottomHigh: {
+      title: "Respiración agitada en profundidad",
+      detail: "En el fondo respiraste {bottom} L/min, frente a {rmv} L/min en toda la inmersión. Haz una pausa al descender, exhala despacio y aletea menos en profundidad.",
+    },
     sawtooth: {
       title: "Perfil en diente de sierra",
       detail: "{n} ascensos/descensos repetidos de 4 m o más. Los perfiles en yoyó aumentan el riesgo de ED.",
@@ -376,6 +380,7 @@ export const es: Messages = {
     gas: "Gas",
     gasLeft: "Gas restante",
     rmv: "Consumo (RMV)",
+    rmvBottom: "En el fondo",
     addTank: "añade el tamaño de la botella",
     tankUnknown: "tamaño de botella desconocido",
     noTankPressure: "sin presión de botella",
