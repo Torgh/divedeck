@@ -5,6 +5,7 @@ import { fingerprint } from "./dive";
 import {
   analyzeRecord,
   chronological,
+  cleanNotes,
   DIVER_GAS_ID,
   type DiveRecord,
   effectiveDive,
@@ -108,5 +109,30 @@ describe("dive records", () => {
       ["2", null],
     ];
     for (const [text, gas] of cases) expect(parseGas(text), text).toEqual(gas);
+  });
+});
+
+describe("cleaning up what the computer exported", () => {
+  it("drops the empty labels of a notes template", () => {
+    expect(cleanNotes("Summary: Environment: Gas: Gear: Issues:")).toBeNull();
+    expect(cleanNotes("Summary: Nice dive Environment: Gas: EAN32 Issues:")).toBe("Summary: Nice dive Gas: EAN32");
+    expect(cleanNotes("Buddy: Tom\nGreat vis")).toBe("Buddy: Tom\nGreat vis");
+    expect(cleanNotes("Just a note")).toBe("Just a note");
+    expect(cleanNotes("  ")).toBeNull();
+  });
+
+  it("keeps the diver's own notes as they are", () => {
+    const dive = { ...shearwater, notes: "Summary: Environment:" };
+    expect(effectiveDive(record(dive)).notes).toBeNull();
+    expect(effectiveDive(record(dive, { details: { notes: "Gas:" } })).notes).toBe("Gas:");
+  });
+
+  it("gives an unlinked tank the dive's only gas", () => {
+    const dive = structuredClone(shearwater);
+    dive.tanks = [{ id: "t", mixId: null, volumeL: 15, startBar: 200, endBar: 50 }];
+    dive.gasMixes = { air: { id: "air", name: "air", o2: 0.21, he: 0 } };
+    dive.samples.forEach((s) => (s.mixRef = null));
+    expect(effectiveDive(record(dive)).tanks[0].mixId).toBe("air");
+    expect(analyzeRecord(record(dive)).metrics).toEqual(analyzeRecord(record(dive)).metrics);
   });
 });

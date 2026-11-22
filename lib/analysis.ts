@@ -21,6 +21,13 @@ export const RESERVE_WARN_BAR = 50;
 export const RESERVE_CRIT_BAR = 30;
 export const SAFETY_STOP_S = 180;
 export const SAWTOOTH_AMPLITUDE_M = 4;
+/** NDL under this, without deco, is a warning; up to NDL_INFO_MIN, a note. */
+export const NDL_WARN_MIN = 3;
+export const NDL_INFO_MIN = 5;
+/** The bottom phase: from the first to the last time the diver was this deep, as a share of the max depth. */
+export const BOTTOM_PHASE_FRACTION = 2 / 3;
+/** Dives shallower than this (pool sessions, check-outs) don't count in the progress trends. */
+export const TREND_MIN_DEPTH_M = 5;
 
 /** NOAA single-exposure CNS limits: [ppO2 bar, minutes]. */
 const NOAA_CNS: [number, number][] = [
@@ -45,6 +52,8 @@ export interface DiveMetrics {
   gasUsedL: number | null;
   /** Surface-equivalent respiratory minute volume. */
   rmvLMin: number | null;
+  /** RMV in the bottom phase (deeper than 2/3 of the max depth), from the tank pressure samples; single-tank dives. */
+  bottomRmvLMin: number | null;
   /** Only for single-tank dives. */
   sacBarMin: number | null;
   endPressureBar: number | null;
@@ -163,6 +172,7 @@ export function analyzeDive(dive: Dive, lang: Lang = "en"): DiveAnalysis {
   }
   let rmv: number | null = null;
   if (gasUsedL && durationMin > 0) rmv = gasUsedL / durationMin / (ambientBar(avgDepth) / SURFACE_BAR);
+  const bottomRmv = bottomPhaseRmv(dive);
 
   // Ascent / descent
   const rates = windowedRates(times, depths);
@@ -231,6 +241,7 @@ export function analyzeDive(dive: Dive, lang: Lang = "en"): DiveAnalysis {
     minTempC: roundOrNull(dive.minTempC, 1),
     gasUsedL: roundOrNull(gasUsedL),
     rmvLMin: roundOrNull(rmv, 1),
+    bottomRmvLMin: roundOrNull(bottomRmv, 1),
     sacBarMin: roundOrNull(sac, 2),
     endPressureBar: roundOrNull(endPressure),
     maxAscentRateMMin: pyRound(maxAscent, 1),
@@ -254,6 +265,39 @@ export function analyzeDive(dive: Dive, lang: Lang = "en"): DiveAnalysis {
   const findings = diveFindings(metrics, lang);
   metrics.score = score(findings);
   return { metrics, findings };
+}
+
+/**
+ * Surface RMV in the bottom phase: between the first and the last sample deeper than 2/3 of the max
+ * depth, from the tank pressure recorded there. Null without one tank with a volume and pressure
+ * samples, on dives under 10 m, or when the phase lasts under 2 minutes.
+ */
+export function bottomPhaseRmv(dive: Dive): number | null {
+  const usable = dive.tanks.filter((t) => t.startBar && t.endBar !== null);
+  if (usable.length !== 1 || !usable[0].volumeL || dive.maxDepthM < 10) return null;
+  const tank = usable[0];
+  const s = dive.samples;
+  const limit = dive.maxDepthM * BOTTOM_PHASE_FRACTION;
+  const first = s.findIndex((x) => x.depthM >= limit);
+  const last = s.findLastIndex((x) => x.depthM >= limit);
+  if (first < 0) return null;
+  // A transmitter's own id (Shearwater's "T1") needn't match a tank: with one tank, it is that one.
+  const ids = new Set(dive.tanks.map((t) => t.id));
+  const withPressure = s
+    .slice(first, last + 1)
+    .filter((x) => x.pressureBar !== null && (x.tankRef === null || x.tankRef === tank.id || !ids.has(x.tankRef)));
+  if (withPressure.length < 2) return null;
+  const a = withPressure[0];
+  const b = withPressure[withPressure.length - 1];
+  const dtMin = (b.timeS - a.timeS) / 60;
+  if (dtMin < 2 || a.pressureBar! <= b.pressureBar!) return null;
+  let area = 0;
+  for (let i = first + 1; i <= last; i++) {
+    if (s[i].timeS <= a.timeS || s[i - 1].timeS >= b.timeS) continue;
+    area += (s[i].timeS - s[i - 1].timeS) * (s[i].depthM + s[i - 1].depthM) / 2;
+  }
+  const avgDepth = area / (b.timeS - a.timeS);
+  return ((a.pressureBar! - b.pressureBar!) * tank.volumeL!) / dtMin / (ambientBar(avgDepth) / SURFACE_BAR);
 }
 
 /** Re-descents of at least SAWTOOTH_AMPLITUDE_M after an ascent of the same size. */
@@ -327,12 +371,21 @@ function diveFindings(m: DiveMetrics, lang: Lang): Finding[] {
     else if (m.endPressureBar < RESERVE_WARN_BAR) add("warning", "reserveLow", { bar: m.endPressureBar, reserve: fixed0(RESERVE_WARN_BAR) });
   }
 
+  // Breathing hard at the bottom is the same habit as a high RMV: one finding for both, not two penalties.
+  const heavyBottom =
+    m.bottomRmvLMin !== null && m.rmvLMin !== null && m.bottomRmvLMin > 20 && m.bottomRmvLMin >= m.rmvLMin * 1.2;
   if (m.rmvLMin !== null) {
-    if (m.rmvLMin > 25) add("warning", "rmvHigh", { rmv: f(m.rmvLMin) });
+    if (m.rmvLMin > 25) {
+      if (heavyBottom) add("warning", "rmvHighBottom", { rmv: f(m.rmvLMin), bottom: f(m.bottomRmvLMin!) });
+      else add("warning", "rmvHigh", { rmv: f(m.rmvLMin) });
+    } else if (heavyBottom) add("info", "rmvBottomHigh", { bottom: f(m.bottomRmvLMin!), rmv: f(m.rmvLMin) });
     else if (m.rmvLMin < 15) add("good", "rmvLow", { rmv: f(m.rmvLMin) });
   }
 
-  if (m.minNdlMin !== null && !m.hadDeco && m.minNdlMin < 3) add("warning", "nearNdl", { ndl: f(m.minNdlMin) });
+  if (m.minNdlMin !== null && !m.hadDeco) {
+    if (m.minNdlMin < NDL_WARN_MIN) add("warning", "nearNdl", { ndl: f(m.minNdlMin) });
+    else if (m.minNdlMin <= NDL_INFO_MIN) add("info", "nearNdl", { ndl: f(m.minNdlMin) });
+  }
 
   if (m.sawtoothCount >= 3) add("warning", "sawtooth", { n: m.sawtoothCount });
 
@@ -398,6 +451,11 @@ function slope(values: number[]): number {
   return den ? pySum(values.map((y, x) => (x - mx) * (y - my))) / den : 0;
 }
 
+/** The dives the trends compare: not the shallow ones (pool sessions, check-outs), which would skew them. */
+export function forTrends<T extends Partial<DiveMetrics>>(history: T[]): T[] {
+  return history.filter((h) => h.maxDepthM === undefined || h.maxDepthM >= TREND_MIN_DEPTH_M);
+}
+
 /** How a metric evolved over dives in chronological order, or null with fewer than 3 values. */
 export function trend(history: HistoryEntry[], metric: ProgressMetric): Trend | null {
   return trendWithAverages(history, metric)?.trend ?? null;
@@ -411,7 +469,7 @@ function trendWithAverages(
   history: HistoryEntry[],
   metric: ProgressMetric,
 ): { trend: Trend; early: string; recent: string } | null {
-  const values = history.flatMap((h) => (h[metric] === null || h[metric] === undefined ? [] : [h[metric] as number]));
+  const values = forTrends(history).flatMap((h) => (h[metric] === null || h[metric] === undefined ? [] : [h[metric] as number]));
   if (values.length < 3) return null;
   const { label, better } = PROGRESS_METRICS[metric];
   const half = Math.max(1, Math.floor(values.length / 2));
@@ -447,7 +505,7 @@ const GOOD_FINDINGS: FindingKey[] = ["controlledAscent", "safetyStopDone", "rmvL
 export function progressInsights(history: HistoryEntry[], lang: Lang = "en"): Finding[] {
   const t = (key: Key, params?: Params) => translate(lang, key, params);
   const out: Finding[] = [];
-  if (history.length < 3) return [{ severity: "info", title: t("progress.notEnough.title"), detail: t("progress.notEnough.detail") }];
+  if (forTrends(history).length < 3) return [{ severity: "info", title: t("progress.notEnough.title"), detail: t("progress.notEnough.detail") }];
   for (const metric of ["rmvLMin", "maxAscentRateMMin", "fastAscentSeconds", "score", "safetyStopS"] as const) {
     const found = trendWithAverages(history, metric);
     if (!found || found.trend.verdict === "stable") continue;

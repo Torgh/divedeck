@@ -13,6 +13,7 @@ import {
   PROGRESS_METRICS,
   type ProgressMetric,
   type Severity,
+  TREND_MIN_DEPTH_M,
   trend,
   type Trend,
 } from "./analysis";
@@ -119,7 +120,8 @@ export function logView(records: DiveRecord[], lang: Lang = "en"): LogView {
   const progress = CHARTED.map((metric): ProgressSeries => {
     const points = dives.flatMap((d, i) => {
       const value = analyses[i].metrics[metric];
-      return value === null ? [] : [{ seq: d.seq, start: d.start, value }];
+      // The trend leaves out the shallow dives (pool sessions), so the chart and its fit do too.
+      return value === null || d.maxDepthM < TREND_MIN_DEPTH_M ? [] : [{ seq: d.seq, start: d.start, value }];
     });
     const { label, better } = PROGRESS_METRICS[metric];
     return { metric, label, better, points, trend: trend(h, metric), fit: leastSquares(points) };

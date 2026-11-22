@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeDive, ascentRateSeries, cnsRatePerMin, countSawtooth, type HistoryEntry, progressInsights, trend } from "./analysis";
+import { analyzeDive, ascentRateSeries, bottomPhaseRmv, cnsRatePerMin, countSawtooth, type HistoryEntry, progressInsights, trend } from "./analysis";
 import type { Dive } from "./dive";
 
 const ramp = (t0: number, t1: number, d0: number, d1: number, step = 10): [number, number][] => {
@@ -88,5 +88,82 @@ describe("progress", () => {
     expect(progressInsights(history)).toEqual([
       { severity: "info", title: "Consistent performance", detail: "Your key metrics are stable across your logged dives." },
     ]);
+  });
+});
+
+describe("bottom-phase gas and NDL", () => {
+  /** 30 m for 10 min breathing hard (10 bar/min), then 20 min at 10 m breathing calmly (2 bar/min). */
+  function hardBottom(): Dive {
+    const pts = [...ramp(0, 180, 0, 30), ...ramp(190, 780, 30, 30), ...ramp(790, 960, 30, 10), ...ramp(970, 2160, 10, 10), ...ramp(2170, 2400, 10, 0)];
+    const dive = makeDive(pts);
+    dive.tanks = [{ id: "t", mixId: "m", volumeL: 15, startBar: 200, endBar: 40 }];
+    let bar = 200;
+    dive.samples.forEach((s, i) => {
+      if (i) bar -= ((s.timeS - dive.samples[i - 1].timeS) / 60) * (s.depthM >= 20 ? 10 : 2);
+      s.pressureBar = bar;
+    });
+    return dive;
+  }
+
+  it("measures the RMV at the bottom from the tank pressure there", () => {
+    // 10 bar/min × 15 L: 37.9 L/min at the surface from 30 m, a little more with the way down and up below 20 m
+    const bottom = bottomPhaseRmv(hardBottom())!;
+    expect(bottom).toBeGreaterThan((10 * 15) / (4.013 / 1.013));
+    expect(bottom).toBeLessThan(40);
+    const { metrics, findings } = analyzeDive(hardBottom());
+    expect(metrics.bottomRmvLMin).toBeGreaterThan(metrics.rmvLMin! * 1.2);
+    expect(findings.map((f) => f.title)).toContain("Heavy breathing at depth");
+  });
+
+  it("reads a transmitter's pressure when its id doesn't match the tank (Shearwater's T1)", () => {
+    const dive = hardBottom();
+    dive.samples.forEach((s) => (s.tankRef = "T1"));
+    expect(bottomPhaseRmv(dive)).toBe(bottomPhaseRmv(hardBottom()));
+  });
+
+  it("needs tank pressure samples and a tank volume", () => {
+    const dive = hardBottom();
+    dive.samples.forEach((s) => (s.pressureBar = null));
+    expect(bottomPhaseRmv(dive)).toBeNull();
+    const noVolume = hardBottom();
+    noVolume.tanks[0].volumeL = null;
+    expect(bottomPhaseRmv(noVolume)).toBeNull();
+  });
+
+  it("notes an NDL of 3 to 5 minutes and warns under 3", () => {
+    const dive = makeDive([...ramp(0, 120, 0, 20), ...ramp(130, 600, 20, 20), ...ramp(610, 800, 20, 0)]);
+    const ndl = (ndlS: number) => {
+      dive.samples.forEach((s, i) => (s.ndlS = i === 20 ? ndlS : 1200));
+      return analyzeDive(dive).findings.find((f) => f.title === "Close to no-deco limit")?.severity;
+    };
+    expect(ndl(300)).toBe("info");
+    expect(ndl(180)).toBe("info");
+    expect(ndl(120)).toBe("warning");
+    expect(ndl(360)).toBeUndefined();
+  });
+
+  it("counts a high RMV and heavy breathing at the bottom once", () => {
+    const dive = hardBottom();
+    dive.tanks[0].endBar = 10; // more gas used: the whole-dive RMV goes over 25 L/min
+    const { metrics, findings } = analyzeDive(dive);
+    expect(metrics.rmvLMin).toBeGreaterThan(25);
+    const gas = findings.filter((f) => f.title === "High gas consumption" || f.title === "Heavy breathing at depth");
+    expect(gas).toHaveLength(1);
+    expect(gas[0].detail).toContain(String(metrics.bottomRmvLMin));
+  });
+});
+
+describe("trends leave out shallow dives", () => {
+  it("doesn't compare against a pool session", () => {
+    const h: HistoryEntry[] = [
+      { maxDepthM: 2.4, rmvLMin: 12 },
+      { maxDepthM: 20, rmvLMin: 25 },
+      { maxDepthM: 22, rmvLMin: 25 },
+      { maxDepthM: 18, rmvLMin: 24.8 },
+    ];
+    const t = trend(h, "rmvLMin")!;
+    expect(t.dives).toBe(3);
+    expect(t.verdict).toBe("stable");
+    expect(trend(h.slice(0, 3), "rmvLMin")).toBeNull();
   });
 });

@@ -103,6 +103,12 @@ export function MetricCards({ data, detailsHref }: { data: DiveView; detailsHref
             <strong>{show("flow", m.rmvLMin)}</strong>
           )}
         </div>
+        {m.bottomRmvLMin !== null && (
+          <div className="kv">
+            <span>{t("summary.rmvBottom")}</span>
+            <strong>{show("flow", m.bottomRmvLMin)}</strong>
+          </div>
+        )}
         <div className="kv">
           <span>CNS</span>
           <strong>{formatNumber(m.cnsPercent, 1, "%", lang)}</strong>

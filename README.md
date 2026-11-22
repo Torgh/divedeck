@@ -55,12 +55,17 @@ seconds on Google Drive).
 
 **Analysis** (rule-based, offline, no AI needed)
 
-- gas consumption: surface RMV (L/min) and SAC (bar/min), and the gas left
+- gas consumption: surface RMV (L/min) and SAC (bar/min), the RMV at the bottom (deeper than 2/3
+  of the max depth, from the tank pressure there), and the gas left
 - ascent and descent rates, with fast ascents marked on the profile
 - safety stop and decompression stops, including deco-ceiling violations
 - oxygen exposure: ppO2 per gas (following gas switches), CNS % and OTU
-- END for trimix, hypoxic mixes, sawtooth profiles, NDL margin and computer alarms
-- a 0–100 dive score, and trends across your dives
+- END for trimix, hypoxic mixes, sawtooth profiles, NDL margin (a note at 3–5 min, a warning under
+  3) and computer alarms
+- a 0–100 dive score, and trends across your dives (dives under 5 m, such as pool sessions, are left
+  out of them)
+- tidy imports: a computer's empty notes template is dropped, and a tank without a gas link gets the
+  dive's gas
 
 **Your companion**
 
