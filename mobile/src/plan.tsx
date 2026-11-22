@@ -75,6 +75,8 @@ export function PlanScreen({ records, kit, now }: { records: DiveRecord[]; kit: 
   const estimate = set ? estimateWeighting(kit, records, set, water, undefined, null, lang) : null;
   const [ticks, toggle, reset] = useTicks();
   const n = (x: number, digits = 1) => formatNumber(x, digits, "", lang);
+  // Narcosis is in "From your log" already (on air, and the END of a trimix).
+  const shown = plan ? plan.problems.filter((p) => p !== "narcosis") : [];
   const gasName = mix ? gasLabel({ id: "", name: "", ...mix }) : gas;
 
   const checks: { id: string; text: string }[] = [
@@ -192,9 +194,9 @@ export function PlanScreen({ records, kit, now }: { records: DiveRecord[]; kit: 
             </div>
           </section>
 
-          {plan.problems.length > 0 && (
+          {shown.length > 0 && (
             <div className="notice">
-              {plan.problems.map((p) => (
+              {shown.map((p) => (
                 <p key={p} style={{ margin: "0.25rem 0" }}>
                   {t(`plan.problem.${p}`, { ppo2: n(plan.ppo2, 2), depth: n(depthM), start: startBar ?? 0, rb: plan.rockBottomBar, end: n(plan.endM, 0) })}
                 </p>
