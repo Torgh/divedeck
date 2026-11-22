@@ -65,6 +65,10 @@ export const es: Messages = {
     },
     rmvLow: { title: "Respiración eficiente", detail: "Un RMV de {rmv} L/min es muy económico." },
     nearNdl: { title: "Cerca del límite sin descompresión", detail: "El NDL bajó a {ndl} min. Planifica cuándo dejar la profundidad antes de acercarte tanto al límite." },
+    rmvHighBottom: {
+      title: "Consumo de gas alto",
+      detail: "RMV de {rmv} L/min en la inmersión y {bottom} L/min en el fondo. Haz una pausa al descender, exhala despacio y aletea menos en profundidad; trabaja el trimado.",
+    },
     rmvBottomHigh: {
       title: "Respiración agitada en profundidad",
       detail: "En el fondo respiraste {bottom} L/min, frente a {rmv} L/min en toda la inmersión. Haz una pausa al descender, exhala despacio y aletea menos en profundidad.",

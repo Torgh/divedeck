@@ -55,6 +55,10 @@ export const en = {
     rmvHigh: { title: "High gas consumption", detail: "RMV {rmv} L/min. Work on relaxed breathing, trim and finning efficiency; check for leaks." },
     rmvLow: { title: "Efficient breathing", detail: "RMV {rmv} L/min is very economical." },
     nearNdl: { title: "Close to no-deco limit", detail: "NDL dropped to {ndl} min. Plan when to leave the depth before the limit gets this close." },
+    rmvHighBottom: {
+      title: "High gas consumption",
+      detail: "RMV {rmv} L/min over the dive and {bottom} L/min at the bottom. Pause on the way down, exhale slowly and fin less at depth; work on trim.",
+    },
     rmvBottomHigh: {
       title: "Heavy breathing at depth",
       detail: "At the bottom you breathed {bottom} L/min, against {rmv} L/min over the whole dive. Pause on the way down, exhale slowly and fin less at depth.",

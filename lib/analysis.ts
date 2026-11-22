@@ -21,8 +21,9 @@ export const RESERVE_WARN_BAR = 50;
 export const RESERVE_CRIT_BAR = 30;
 export const SAFETY_STOP_S = 180;
 export const SAWTOOTH_AMPLITUDE_M = 4;
-/** NDL at or below this, without deco, is worth a warning. */
-export const NDL_WARN_MIN = 5;
+/** NDL under this, without deco, is a warning; up to NDL_INFO_MIN, a note. */
+export const NDL_WARN_MIN = 3;
+export const NDL_INFO_MIN = 5;
 /** The bottom phase: from the first to the last time the diver was this deep, as a share of the max depth. */
 export const BOTTOM_PHASE_FRACTION = 2 / 3;
 /** Dives shallower than this (pool sessions, check-outs) don't count in the progress trends. */
@@ -370,16 +371,21 @@ function diveFindings(m: DiveMetrics, lang: Lang): Finding[] {
     else if (m.endPressureBar < RESERVE_WARN_BAR) add("warning", "reserveLow", { bar: m.endPressureBar, reserve: fixed0(RESERVE_WARN_BAR) });
   }
 
+  // Breathing hard at the bottom is the same habit as a high RMV: one finding for both, not two penalties.
+  const heavyBottom =
+    m.bottomRmvLMin !== null && m.rmvLMin !== null && m.bottomRmvLMin > 20 && m.bottomRmvLMin >= m.rmvLMin * 1.2;
   if (m.rmvLMin !== null) {
-    if (m.rmvLMin > 25) add("warning", "rmvHigh", { rmv: f(m.rmvLMin) });
+    if (m.rmvLMin > 25) {
+      if (heavyBottom) add("warning", "rmvHighBottom", { rmv: f(m.rmvLMin), bottom: f(m.bottomRmvLMin!) });
+      else add("warning", "rmvHigh", { rmv: f(m.rmvLMin) });
+    } else if (heavyBottom) add("info", "rmvBottomHigh", { bottom: f(m.bottomRmvLMin!), rmv: f(m.rmvLMin) });
     else if (m.rmvLMin < 15) add("good", "rmvLow", { rmv: f(m.rmvLMin) });
   }
 
-  if (m.bottomRmvLMin !== null && m.rmvLMin !== null && m.bottomRmvLMin > 20 && m.bottomRmvLMin >= m.rmvLMin * 1.2) {
-    add("info", "rmvBottomHigh", { bottom: f(m.bottomRmvLMin), rmv: f(m.rmvLMin) });
+  if (m.minNdlMin !== null && !m.hadDeco) {
+    if (m.minNdlMin < NDL_WARN_MIN) add("warning", "nearNdl", { ndl: f(m.minNdlMin) });
+    else if (m.minNdlMin <= NDL_INFO_MIN) add("info", "nearNdl", { ndl: f(m.minNdlMin) });
   }
-
-  if (m.minNdlMin !== null && !m.hadDeco && m.minNdlMin <= NDL_WARN_MIN) add("warning", "nearNdl", { ndl: f(m.minNdlMin) });
 
   if (m.sawtoothCount >= 3) add("warning", "sawtooth", { n: m.sawtoothCount });
 

@@ -130,12 +130,26 @@ describe("bottom-phase gas and NDL", () => {
     expect(bottomPhaseRmv(noVolume)).toBeNull();
   });
 
-  it("warns when the NDL drops to 5 minutes", () => {
+  it("notes an NDL of 3 to 5 minutes and warns under 3", () => {
     const dive = makeDive([...ramp(0, 120, 0, 20), ...ramp(130, 600, 20, 20), ...ramp(610, 800, 20, 0)]);
-    dive.samples.forEach((s, i) => (s.ndlS = i === 20 ? 300 : 1200));
-    expect(analyzeDive(dive).findings.map((f) => f.title)).toContain("Close to no-deco limit");
-    dive.samples.forEach((s) => (s.ndlS = 360));
-    expect(analyzeDive(dive).findings.map((f) => f.title)).not.toContain("Close to no-deco limit");
+    const ndl = (ndlS: number) => {
+      dive.samples.forEach((s, i) => (s.ndlS = i === 20 ? ndlS : 1200));
+      return analyzeDive(dive).findings.find((f) => f.title === "Close to no-deco limit")?.severity;
+    };
+    expect(ndl(300)).toBe("info");
+    expect(ndl(180)).toBe("info");
+    expect(ndl(120)).toBe("warning");
+    expect(ndl(360)).toBeUndefined();
+  });
+
+  it("counts a high RMV and heavy breathing at the bottom once", () => {
+    const dive = hardBottom();
+    dive.tanks[0].endBar = 10; // more gas used: the whole-dive RMV goes over 25 L/min
+    const { metrics, findings } = analyzeDive(dive);
+    expect(metrics.rmvLMin).toBeGreaterThan(25);
+    const gas = findings.filter((f) => f.title === "High gas consumption" || f.title === "Heavy breathing at depth");
+    expect(gas).toHaveLength(1);
+    expect(gas[0].detail).toContain(String(metrics.bottomRmvLMin));
   });
 });
 

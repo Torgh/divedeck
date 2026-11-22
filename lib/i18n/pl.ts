@@ -70,6 +70,10 @@ export const pl: Messages = {
     },
     rmvLow: { title: "Oszczędny oddech", detail: "RMV {rmv} L/min to bardzo oszczędnie." },
     nearNdl: { title: "Blisko limitu bezdekompresyjnego", detail: "NDL spadł do {ndl} min. Zaplanuj wyjście z głębokości, zanim limit tak się zbliży." },
+    rmvHighBottom: {
+      title: "Duże zużycie gazu",
+      detail: "RMV {rmv} L/min w całym nurkowaniu i {bottom} L/min na dnie. Zrób pauzę przy zejściu, wydychaj powoli i mniej pracuj płetwami na głębokości; popracuj nad trymem.",
+    },
     rmvBottomHigh: {
       title: "Ciężki oddech na głębokości",
       detail: "Na dnie oddychałeś {bottom} L/min, a średnio w całym nurkowaniu {rmv} L/min. Zrób pauzę przy zejściu, wydychaj powoli i mniej pracuj płetwami na głębokości.",
