@@ -3,7 +3,9 @@ import { isProviderId, maskKey, PROVIDERS, type ProviderId } from "@/lib/provide
 import { agentAppStatus } from "@/lib/server/agentApps";
 import { apiKey, configPath, readSettings, select, selected, setApiKey, setUnits, units } from "@/lib/server/config";
 import { assertLocal, handle, readBody } from "@/lib/server/http";
+import { activeBackend } from "@/lib/server/backends";
 import { dataDir } from "@/lib/server/paths";
+import { phoneFileLocation, schedulePhoneFile } from "@/lib/server/phoneFile";
 
 function settingsView() {
   const { provider, model } = selected();
@@ -24,6 +26,7 @@ function settingsView() {
     units: units(),
     configPath: configPath(),
     dataFolder: dataDir(),
+    phoneFile: phoneFileLocation(activeBackend()),
   };
 }
 
@@ -45,6 +48,9 @@ export const PUT = handle(async (req) => {
   const body = await readBody(req, patch);
   if (body.key) await setApiKey(body.key.provider, body.key.value);
   if (body.provider) await select(body.provider as ProviderId, body.model);
-  if (body.units) await setUnits(body.units);
+  if (body.units) {
+    await setUnits(body.units);
+    schedulePhoneFile(activeBackend()); // the phone shows the units chosen here
+  }
   return settingsView();
 });

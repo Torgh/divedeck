@@ -211,11 +211,10 @@ export default function SettingsPage() {
         <p className="secondary" style={{ margin: 0 }}>
           {t("settings.phoneHelp")}
         </p>
-        <div className="row">
-          <a className="button primary" href="/api/export" download>
-            {t("settings.export")}
-          </a>
-        </div>
+        <p style={{ margin: 0 }}>
+          {t("settings.phoneFile")} <code>{settings.phoneFile}</code>
+        </p>
+        <PhoneFileButtons />
       </div>
 
       <div className="card">
@@ -226,6 +225,35 @@ export default function SettingsPage() {
           {t("settings.dataFolder")} <code>{settings.dataFolder}</code>
         </p>
       </div>
+    </div>
+  );
+}
+
+/** Writes the phone's file now (it is also written after every change), or downloads it. */
+function PhoneFileButtons() {
+  const t = useT();
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function refresh() {
+    setBusy(true);
+    try {
+      await api("/api/export", "POST");
+      setMessage(t("settings.phoneFileWritten"));
+    } catch (err) {
+      setMessage((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="row">
+      <button type="button" className="button primary" onClick={refresh} disabled={busy}>
+        {t("settings.phoneFileNow")}
+      </button>
+      <a className="button" href="/api/export" download>
+        {t("settings.export")}
+      </a>
+      {message && <span className="secondary">{message}</span>}
     </div>
   );
 }

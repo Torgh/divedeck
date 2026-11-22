@@ -278,10 +278,13 @@ The phone export never includes them.
 with nothing to host and no account. It runs the same `lib/` and the same components as the web app,
 so a dive looks the same on both.
 
-- **Getting your log onto the phone:** on the PC choose *Settings → Export for phone*, put the
-  `.divedeck.json` file where the phone can open it (Google Drive, OneDrive, Downloads, an email) and
-  tap **Import your DiveDeck file** on the phone. A newer export replaces the one on the phone; *Your
-  file* says when it was made.
+- **Getting your log onto the phone:** as TripDeck does with its trips, DiveDeck keeps one file for
+  the phone up to date in its folder: `phone/DiveDeck.divedeck.json` (on Google Drive *My Drive ›
+  DiveDeck › phone*, in OneDrive *DiveDeck › phone*), written a few seconds after every change to the
+  dives, trips or kit, by the app or by your companion. On the phone, tap **Import your DiveDeck file**
+  (later *Your file → Import a newer file*) and open it from the Drive or OneDrive app; it replaces
+  the log on the phone, and *Your file* says when it was written. *Settings → On your phone* shows
+  where the file is, writes it at once, or downloads a copy to send another way.
 - **What it shows:** the dashboard with the next trip and your totals, the dive log with search and
   filters, each dive with its score, findings, profile charts, metrics, debrief and details, and each
   trip with what is left to sort out, the checks before you go (break, flying after diving, gas plan),

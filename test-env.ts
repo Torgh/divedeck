@@ -18,4 +18,6 @@ export function isolateEnv(home: string): void {
   for (const key of Object.keys(process.env)) if (/^(DIVEDECK|AI_DIVING_MONITOR)_/i.test(key)) delete process.env[key];
   process.env.DIVEDECK_HOME = home;
   process.env.DIVEDECK_DB = path.join(home, "no-such.db");
+  // The phone's file is written a few seconds after a change: never after a test has removed its folder.
+  process.env.DIVEDECK_PHONE_FILE = "off";
 }
