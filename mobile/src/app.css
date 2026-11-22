@@ -38,3 +38,9 @@
 .page [id] {
   scroll-margin-top: calc(4.5rem + env(safe-area-inset-top, 0px));
 }
+
+/* Six tabs: a long label ends in an ellipsis rather than pushing the others. */
+.nav > a.link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

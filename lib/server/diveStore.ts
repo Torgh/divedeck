@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { type Dive, fingerprint } from "../dive";
-import { chronological, type DiveDetails, type DiveRecord, newRecord, RECORD_FORMAT, recordFileName, type Review } from "../record";
+import { applyDetailsPatch, chronological, type DetailsPatch, type DiveRecord, newRecord, RECORD_FORMAT, recordFileName, type Review } from "../record";
 import { PARSER_VERSION, parseUddf } from "../uddf";
 import { activeBackend, type Backend, type StoredFile } from "./backends";
 import { withLock } from "./files";
@@ -110,15 +110,9 @@ export class DiveStore {
   }
 
   /** Fills in or changes details; `null` or an empty string removes one. */
-  updateDetails(id: string, patch: { [K in keyof DiveDetails]?: DiveDetails[K] | null }): Promise<DiveRecord> {
+  updateDetails(id: string, patch: DetailsPatch): Promise<DiveRecord> {
     return this.update(id, (record) => {
-      const details: Record<string, unknown> = { ...record.details };
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === undefined) continue;
-        if (value === null || value === "") delete details[key];
-        else details[key] = typeof value === "string" ? value.trim() : value;
-      }
-      record.details = details as DiveDetails;
+      record.details = applyDetailsPatch(record.details, patch);
     });
   }
 

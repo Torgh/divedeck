@@ -9,9 +9,19 @@ import type { TripTodo } from "@/lib/trip";
 /**
  * What is still to sort out before the trip: your companion's list (questions for the dive centre,
  * gear, a course) and your own. Tick them off here; the next preparation sees what you did. Without
- * `edit` (the phone) the list is only shown.
+ * `edit` (the phone) to-dos are only ticked off, through `onTick`, or only shown.
  */
-export function TripTodos({ todos, cards, edit }: { todos: TripTodo[]; cards: { itemId: string; title: string }[]; edit?: TripEdit }) {
+export function TripTodos({
+  todos,
+  cards,
+  edit,
+  onTick,
+}: {
+  todos: TripTodo[];
+  cards: { itemId: string; title: string }[];
+  edit?: TripEdit;
+  onTick?: (id: string, done: boolean) => void;
+}) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -48,7 +58,12 @@ export function TripTodos({ todos, cards, edit }: { todos: TripTodo[]; cards: { 
   const item = (todo: TripTodo) => (
     <li key={todo.id} className={todo.done ? "done" : undefined}>
       <label>
-        <input type="checkbox" checked={todo.done} disabled={busy || !edit} onChange={(e) => call("PATCH", { id: todo.id, done: e.target.checked })} />
+        <input
+          type="checkbox"
+          checked={todo.done}
+          disabled={busy || (!edit && !onTick)}
+          onChange={(e) => (onTick ? onTick(todo.id, e.target.checked) : void call("PATCH", { id: todo.id, done: e.target.checked }))}
+        />
         <span>{todo.text}</span>
       </label>
       {todo.itemId && title(todo.itemId) && (

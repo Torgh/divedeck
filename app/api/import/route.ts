@@ -1,14 +1,16 @@
 import { ExportFileError } from "@/lib/exportFile";
-import { isPhoneDives, readPhoneDives } from "@/lib/phoneDives";
+import { isPhoneDives, readPhoneDives, readPhoneEdits } from "@/lib/phoneDives";
+import { countEdits, noEdits, type PhoneEdits } from "@/lib/phoneEdits";
 import { DiveStore } from "@/lib/server/diveStore";
+import { savePhoneEdits } from "@/lib/server/phoneEdits";
 import { assertSameOrigin, handle, HttpError } from "@/lib/server/http";
 import { UddfParseError } from "@/lib/uddf";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
-/** The original files in an upload: a UDDF file as it is, the file from the phone app as the ones it carries. */
-function originals(name: string, data: Uint8Array): { name: string; data: Uint8Array }[] {
-  if (!name.toLowerCase().endsWith(".json")) return [{ name, data }];
+/** The original files in an upload: a UDDF file as it is, the file from the phone app as the ones it carries, with its changes. */
+function originals(name: string, data: Uint8Array): { files: { name: string; data: Uint8Array }[]; edits: PhoneEdits } {
+  if (!name.toLowerCase().endsWith(".json")) return { files: [{ name, data }], edits: noEdits() };
   let json: unknown;
   try {
     json = JSON.parse(new TextDecoder().decode(data));
@@ -16,7 +18,7 @@ function originals(name: string, data: Uint8Array): { name: string; data: Uint8A
     throw new ExportFileError("This .json file isn't valid JSON.");
   }
   if (!isPhoneDives(json)) throw new ExportFileError("This isn't a file from the DiveDeck phone app. On the phone, use Your file → Send to PC.");
-  return readPhoneDives(json).map((f) => ({ name: f.fileName, data: f.data }));
+  return { files: readPhoneDives(json).map((f) => ({ name: f.fileName, data: f.data })), edits: readPhoneEdits(json) };
 }
 
 /** Uploads one or more .uddf files, or the file the phone app sends (multipart form, field "files"). */
@@ -42,8 +44,9 @@ export const POST = handle(async (req) => {
       results.push({ file: file.name, error: err.message });
       continue;
     }
-    if (!found.length) results.push({ file: file.name, error: "No dives in this file." });
-    for (const { name, data } of found) {
+    const hasEdits = countEdits(found.edits) > 0;
+    if (!found.files.length && !hasEdits) results.push({ file: file.name, error: "No dives in this file." });
+    for (const { name, data } of found.files) {
       const label = name === file.name ? name : `${name} (from the phone)`;
       try {
         const r = await store.importFile(name, data);
@@ -52,6 +55,10 @@ export const POST = handle(async (req) => {
         if (!(err instanceof UddfParseError)) throw err;
         results.push({ file: label, error: err.message });
       }
+    }
+    if (hasEdits) {
+      const saved = await savePhoneEdits(found.edits, store);
+      results.push({ file: `${file.name} (changes from the phone)`, dives: saved.dives, todos: saved.todos, skipped: saved.skipped });
     }
   }
   return { results };

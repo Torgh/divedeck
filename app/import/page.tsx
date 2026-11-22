@@ -8,7 +8,16 @@ import { rich } from "@/lib/i18n/rich";
 import { useT } from "@/lib/i18n/useLang";
 import type { LogView } from "@/lib/views";
 
-type Result = { file: string; added?: number; duplicates?: number; error?: string };
+type Result = { file: string; added?: number; duplicates?: number; error?: string; dives?: number; todos?: number; skipped?: string[] };
+
+/** One file's line: dives added, or the changes the phone sent. */
+function resultText(r: Result, t: ReturnType<typeof useT>): string {
+  if (r.dives !== undefined || r.todos !== undefined) {
+    const saved = t("import.phoneChanges", { dives: r.dives ?? 0, todos: r.todos ?? 0 });
+    return r.skipped?.length ? `${saved}; ${t("import.phoneSkipped", { list: r.skipped.join(", ") })}` : saved;
+  }
+  return t("import.fileResult", { added: r.added ?? 0, n: r.duplicates ?? 0 });
+}
 
 /** What the import did, file by file, and where to go next. */
 function ImportSummary({ results, after }: { results: Result[]; after: { dives: number; toSortOut: number } | null }) {
@@ -35,7 +44,7 @@ function ImportSummary({ results, after }: { results: Result[]; after: { dives: 
               {r.error ? Icon.stop : Icon.check}
             </span>
             <span>
-              {r.file}: {r.error ? <span style={{ color: "var(--critical)" }}>{r.error}</span> : t("import.fileResult", { added: r.added ?? 0, n: r.duplicates ?? 0 })}
+              {r.file}: {r.error ? <span style={{ color: "var(--critical)" }}>{r.error}</span> : resultText(r, t)}
             </span>
           </li>
         ))}

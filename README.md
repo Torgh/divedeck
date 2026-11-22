@@ -296,9 +296,25 @@ so a dive looks the same on both.
   `.divedeck.json` file (Google Drive, Gmail, Quick Share…) holding the original UDDF files: drop it on
   the PC's Import page and the dives are in your log, the same as if you had imported the UDDF there.
   The phone keeps them until an export from the PC holds them.
+- **Without AI, on the phone:**
+  - *Plan*: the gas for the next dive from your own RMV (or your RMV at the bottom): rock bottom
+    (two divers sharing air from the deepest point, never under 50 bar), the turn pressure by the
+    rule of thirds, how long the gas lasts at depth, ppO2, MOD and END, and what your log says about
+    the dive (deeper than ever, a long break, narcosis on air, problems that keep coming back).
+  - *Before the dive*: a checklist with the gear of the chosen set, the lead estimate, the gas, the
+    agreed rock bottom and turn, the buddy check and the weight check. The ticks stay on the phone.
+  - *A dive's details*: site, buddy, tank, gas, gear set, lead, water, how the weighting felt and notes,
+    filled in straight after the dive.
+  - *An automatic debrief* for a dive without your companion's one: what went well, what to work on,
+    and one drill for the next dive, written from the numbers.
+  - *Trip to-dos* ticked off.
 
-Otherwise the phone app only reads your log; you still talk to your companion, fill in a dive's
-details, tick off to-dos, choose dive sites, link logged dives to a trip and change your gear on the PC.
+  Details and ticks show at once and travel with **Send to PC** in the same file (version 2): the PC's
+  Import page saves them and says what it couldn't (a dive or a to-do it doesn't have). The phone
+  forgets each change once an export from the PC already holds it.
+
+You still talk to your companion, choose dive sites, link logged dives to a trip and change your gear
+on the PC.
 
 To build it you need JDK 21 and Android Studio (SDK and emulator). Start an emulator or connect a phone
 with USB debugging, then:

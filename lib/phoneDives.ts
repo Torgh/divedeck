@@ -2,17 +2,19 @@
  * Dives imported on the phone, on their way to the PC. The phone keeps the original UDDF files it was
  * given and shows their dives next to the exported log until a newer export already holds them. "Send
  * to PC" puts the files in one `.divedeck.json` file, and the PC imports the originals as if they had
- * been dropped on its Import page, so a dive gets the same record on both.
+ * been dropped on its Import page, so a dive gets the same record on both. Since version 2 the file
+ * also carries what the diver changed on the phone (lib/phoneEdits.ts), which the PC then saves.
  */
 
 import { fingerprint } from "./dive";
 import { ExportFileError } from "./exportFile";
+import { countEdits, type PhoneEdits, readEdits } from "./phoneEdits";
 import { chronological, type DiveRecord, newRecord } from "./record";
 import { sha256Bytes } from "./sha256";
 import { parseUddf } from "./uddf";
 
 export const PHONE_DIVES_FORMAT = "divedeck/phone-dives";
-export const PHONE_DIVES_VERSION = 1;
+export const PHONE_DIVES_VERSION = 2;
 
 /** An original UDDF file imported on the phone. */
 export interface PhoneFile {
@@ -28,6 +30,8 @@ export interface PhoneDives {
   version: number;
   exportedAt: string;
   files: PhoneFile[];
+  /** What was changed on the phone (version 2). */
+  edits?: PhoneEdits;
 }
 
 // btoa/atob work on "binary strings"; in chunks, so a large file doesn't overflow the call stack.
@@ -88,8 +92,13 @@ export function stillOnPhone(files: PhoneFile[], exported: DiveRecord[]): PhoneF
   });
 }
 
-export function buildPhoneDives(files: PhoneFile[], now: string): PhoneDives {
-  return { format: PHONE_DIVES_FORMAT, version: PHONE_DIVES_VERSION, exportedAt: now, files };
+export function buildPhoneDives(files: PhoneFile[], now: string, edits?: PhoneEdits): PhoneDives {
+  return { format: PHONE_DIVES_FORMAT, version: PHONE_DIVES_VERSION, exportedAt: now, files, ...(edits && countEdits(edits) ? { edits } : {}) };
+}
+
+/** The changes made on the phone that the file carries (none in a version 1 file). */
+export function readPhoneEdits(json: unknown): PhoneEdits {
+  return readEdits(isPhoneDives(json) ? (json as { edits?: unknown }).edits : undefined);
 }
 
 /** "DiveDeck from phone 2026-10-27.divedeck.json". */
