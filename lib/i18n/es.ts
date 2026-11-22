@@ -931,6 +931,12 @@ export const es: Messages = {
     }),
     autoDebrief: "Resumen automático",
     todosHere: "Marcado en este teléfono; envíalo al PC desde Tu archivo.",
+    fromDrive: "Actualizar desde Google Drive",
+    driveYours: "Tu propia versión: descarga sola el archivo del Google Drive de <b>{account}</b>, al abrirla y al volver a la app.",
+    driveUpdated: "Actualizado desde Google Drive: {dives}, {trips}",
+    driveUpToDate: "Ya es el archivo más reciente de Google Drive.",
+    driveNone: "Aún no hay DiveDeck.divedeck.json en Google Drive: abre DiveDeck en el PC, Ajustes → En tu móvil → Escribirlo ahora.",
+    driveFailed: "Google Drive: {error}",
   },
   debrief: {
     intro: "_Escrito solo a partir de los números, sin IA. El resumen de tu compañero lo sustituye cuando llega del PC._",

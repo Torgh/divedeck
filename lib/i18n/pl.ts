@@ -1052,6 +1052,12 @@ export const pl: Messages = {
     }),
     autoDebrief: "Automatyczne omówienie",
     todosHere: "Odhaczone na tym telefonie; wyślij na PC z Twojego pliku.",
+    fromDrive: "Odśwież z Dysku Google",
+    driveYours: "Twoja własna wersja: sama pobiera plik z Dysku Google konta <b>{account}</b>, przy starcie i gdy wracasz do aplikacji.",
+    driveUpdated: "Zaktualizowano z Dysku Google: {dives}, {trips}",
+    driveUpToDate: "To już najnowszy plik z Dysku Google.",
+    driveNone: "Na Dysku Google nie ma jeszcze DiveDeck.divedeck.json: otwórz DiveDeck na komputerze, Ustawienia → Na telefonie → Zapisz teraz.",
+    driveFailed: "Dysk Google: {error}",
   },
   debrief: {
     intro: "_Napisane z samych liczb, bez AI. Gdy przyjdzie omówienie Twojego kompana z PC, zajmie jego miejsce._",

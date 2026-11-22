@@ -877,6 +877,12 @@ export const en = {
     }),
     autoDebrief: "Automatic debrief",
     todosHere: "Ticked off on this phone; Send to PC from Your file.",
+    fromDrive: "Refresh from Google Drive",
+    driveYours: "Your own build: it fetches the file from <b>{account}</b>'s Google Drive by itself, on start and when you come back to the app.",
+    driveUpdated: "Updated from Google Drive: {dives}, {trips}",
+    driveUpToDate: "Already the latest file from Google Drive.",
+    driveNone: "No DiveDeck.divedeck.json on Google Drive yet: open DiveDeck on the PC, Settings → On your phone → Write it now.",
+    driveFailed: "Google Drive: {error}",
   },
   debrief: {
     intro: "_Written from the numbers alone, without AI. Your companion's debrief takes its place once it comes from the PC._",

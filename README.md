@@ -345,6 +345,16 @@ that source when Android asks); the `.aab` is for Google Play. A debug build and
 replace each other on one phone: uninstall one (which removes its imported log) to install the other.
 The app's version is DiveDeck's, from `package.json`.
 
+**Your own build, with your Google Drive ("for me").** `bun run android:release` carries no key or
+credential at all. `bun run android:me` builds the same signed release for your own phone with the
+Google Drive sign-in of DiveDeck on this PC (its OAuth client and refresh token, `drive.file` scope:
+only the files DiveDeck created). That phone then fetches `DiveDeck.divedeck.json` from Drive by
+itself, on start and whenever it comes back to the front, and *Your file* has **Refresh from Google
+Drive**. The APK is named `DiveDeck-<version>-dla-mnie.apk` (`-- --out <folder>` puts it there);
+afterwards the build folders are rebuilt without the credentials. Never share that APK or build it
+in CI; if a phone with it is lost, disconnect Google Drive in DiveDeck's Settings and connect it
+again, which revokes the old token.
+
 ## Configuration
 
 Everything is set in **Settings**; environment variables still work, and a saved setting wins.
